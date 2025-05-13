@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUserAuthenticated(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function existingData() {
+      return resource.data;
+    }
+    
+    function incomingData() {
+      return request.resource.data;
+    }
+    
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+    
+    function isInvolvedInMatch(matchData) {
+      return isAuthenticated() && matchData.users.hasAny([request.auth.uid]);
+    }
+    
+    // Allow users to read and write their own data
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isUserAuthenticated(userId);
+      
+      // User preferences (for matching algorithm)
+      match /preferences/{document=**} {
+        allow read, write: if isUserAuthenticated(userId);
+      }
+    }
+    
+    // Swipes collection - store likes and passes
+    match /swipes/{swipeId} {
+      // Only allow users to create their own swipes
+      allow create: if isAuthenticated() && 
+                     incomingData().userId == request.auth.uid &&
+                     userExists(incomingData().targetUserId) &&
+                     (incomingData().action == "like" || 
+                      incomingData().action == "pass" || 
+                      incomingData().action == "superlike");
+      
+      // Only allow the swipe creator to read their own swipes
+      allow read: if isAuthenticated() && 
+                   (existingData().userId == request.auth.uid || 
+                    existingData().targetUserId == request.auth.uid);
+      
+      // Don't allow swipes to be updated or deleted
+      allow update, delete: if false;
+    }
+    
+    // Matches collection - created when two users like each other
+    match /matches/{matchId} {
+      // Only allow reads for users involved in the match
+      allow read: if isInvolvedInMatch(existingData());
+      
+      // Only allow match creation by the involved users (or system)
+      allow create: if isAuthenticated() && 
+                     incomingData().users.hasAll([request.auth.uid]) && 
+                     incomingData().users.size() == 2 && 
+                     incomingData().status == "active" &&
+                     incomingData().initiatedBy == request.auth.uid;
+      
+      // Only allow updates if user is part of the match
+      // and only allow specific fields to be updated
+      allow update: if isInvolvedInMatch(existingData()) && 
+                     (incomingData().diff(existingData()).affectedKeys()
+                      .hasOnly(["status", "lastInteractionAt"]));
+      
+      // Don't allow matches to be deleted
+      allow delete: if false;
+    }
+    
+    // Analytics - only admin access
+    match /analytics/{document=**} {
+      allow read, write: if false; // Only allow via Cloud Functions
+    }
+    
+    // Messages within matches
+    match /matches/{matchId}/messages/{messageId} {
+      // Users can only read messages from matches they're involved in
+      allow read: if isInvolvedInMatch(
+        get(/databases/$(database)/documents/matches/$(matchId)).data
+      );
+      
+      // Users can only create messages in matches they're involved in
+      allow create: if isAuthenticated() && 
+                     incomingData().senderId == request.auth.uid &&
+                     isInvolvedInMatch(
+                       get(/databases/$(database)/documents/matches/$(matchId)).data
+                     );
+      
+      // Don't allow messages to be updated or deleted by users
+      allow update, delete: if false;
+    }
+    
+    // User FCM tokens for notifications
+    match /fcmTokens/{tokenId} {
+      allow read: if false;
+      allow create: if isAuthenticated() && incomingData().userId == request.auth.uid;
+      allow update: if isAuthenticated() && existingData().userId == request.auth.uid;
+      allow delete: if isAuthenticated() && existingData().userId == request.auth.uid;
+    }
+  }
+} 

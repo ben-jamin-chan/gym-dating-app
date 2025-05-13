@@ -1,0 +1,110 @@
+####### WE ARE STARTING WITH FIREBASE FOR STARTUP PHASE, AND WILL SWITCH TO SUPABASE/AWS LATER #######
+
+Build a Tinder-style dating app for gym enthusiasts and casual fitness users using React Native (via Expo), TypeScript, and Node.js. This app will allow users to connect based on workout habits, gym check-ins, and lifestyle preferences. The design should feel clean, mobile-first, and swipe-based—similar to Tinder, but targeted at fitness-focused socializing.
+
+### Core Features:
+1. **Swipe-Based UI**:
+   - Show user cards with name, photos, gym preferences, fitness goals, and location.
+   - Implement swipe gestures (like/dislike) using Framer Motion or React Native Gesture Handler.
+   - Prioritize users with similar gym frequency, workout styles, or nearby locations.
+
+2. **User Profiles & Auth**:
+   - Use Firebase Auth (Google/Apple/Gym login).
+   - Profile includes gym habits (e.g. "Lifts 3x/week", "CrossFit"), fitness goals (e.g., bulking, casual), and optional video intro.
+   - Store images in Cloudinary (auto-crop to gym context).
+
+3. **Location & Gym Check-Ins**:
+   - Integrate Mapbox or Google Maps API to tag current gym locations.
+   - Use PostgreSQL + PostGIS or MongoDB with geolocation queries for proximity-based matching.
+   - Match users who checked into the same gym within 24 hours.
+
+4. **Real-Time Chat**:
+   - Use Firebase Realtime Database or Firestore for in-app messaging.
+   - Push notifications via FCM or OneSignal when a match or message occurs.
+   - Include optional AI-generated gym-related icebreakers (OpenAI API): "Spot me sometime?" or “Want to hit legs together?”
+
+5. **Admin/Moderation & Safety**:
+   - Block/report feature with moderation dashboard.
+   - Optional blur/unblur profile photos until match confirmation.
+   - Screenshot detection and activity tracking using Firebase Analytics.
+
+6. **Casual Add-ons**:
+   - Gym badges and fitness achievement indicators.
+   - Video profile intros (short 10s clips using Agora or Expo Video).
+   - QR code gym check-in system or integrate with APIs like MindBody.
+
+### Stack & Dev Tools:
+- **Frontend**: React Native (Expo), TypeScript, Tailwind CSS (via NativeWind), React Navigation, Recoil or Redux Toolkit.
+- **Backend**: Node.js + Express or NestJS, Firebase (Auth, Messaging), MongoDB or PostgreSQL + PostGIS.
+- **Hosting & DevOps**: Google Cloud Run or AWS for backend, Docker containers, Sentry for crash tracking.
+- **Extras**: Cloudinary (image optimization), OpenAI (chat starters), Agora.io (video), Passport.js (social login).
+
+### What to Generate:
+- Project folder structure
+- Swipe card UI component (React Native)
+- Firebase auth flow (Google/Apple)
+- Node.js API endpoint for matching users by gym check-in location (using PostGIS or Mongo geolocation)
+- Real-time messaging setup with Firebase Firestore
+- Basic deployment instructions (Expo for app, Firebase backend setup)
+
+Make the UI aesthetic with soft card shadows, rounded edges, and gym-themed colors. Ensure mobile-first, responsive behavior.
+
+== 6 MAY 2025 ==
+1. Implemented Location-Based User Matching in React Native
+2. Added a superlike feature, and moved the dislike, superlike, and like button slightly to the top
+3. Added a swipe animation to the cards for the dislike, superlike, and like buttons
+
+== 7 MAY 2025 ==
+1. Added a chat feature using Firebase Firestore (TO BE TESTED)
+2. Added a settings screen to the app
+3. Added auth provider and context to the app
+4. Added logout functionality to the app
+
+== 8 MAY 2025 ==
+# Make the gender in the step 1 create profile page a dropdown with options for male, female, and other. (?)
+# On the profile creating page, allow users to go back to the previous step to edit their profile. (?)
+
+- Custom dev client?
+- https://rnfirebase.io
+
+== 9 MAY 2025 ==
+1. Issue with (npx expo start --ios) to test for firbase auth sign in still not working, but it works on the web. 
+2. Issue with the iOS simulator (npx expo start --ios) not able to sign in with firebase auth # is due to the iOS simulator not being able to connect to the internet. #
+   - Fixed with the below commands:
+      xcrun simctl shutdown all
+      xcrun simctl erase all
+      open -a Simulator
+
+      npx expo start
+   - Then, I can run (npx expo start --ios) to test on the iOS simulator.
+   - To proceed with the development, I can run (npx expo start) to test on the web to build the other features. 
+      - And to fix the iOS simulator, I can run (npx expo run:ios) to test on the iOS simulator.
+
+   # In the menu bar, select Device > Erase All Content and Settings.
+
+== 10 MAY 2025 ==
+- Added Firestore to reflect the profile information of the registeredusers in the settings page.
+
+== 11 MAY 2025 ==
+- (npx expo start --ios) is showing the discover (home tab/page) but not signed in. (?)
+
+== 12 MAY 2025 ==
+Simulator vs Physical Device
+Environment	Best Mode	#Notes
+iOS Simulator	--localhost	#Simulator runs on your machine and can access localhost.
+Android Emulator	--localhost or --lan	#May need special IP (like 10.0.2.2), but localhost works with Expo.
+Physical Device	--lan or --tunnel #LAN works if both are on same network; tunnel bypasses network issues.
+
+- Fixed the swipe animation
+- Fixed the issue with the iOS simulator not being able to connect to the internet. (?)
+
+== 13 MAY 2025 ==
+- Added a chat feature using Firebase Firestore (TO BE TESTED)
+- Fixed swipe being stuck on first and second profiles
+- For registering new account/onboarding, please allow users to select gender 
+- Allow users to click or swipe back on the create your profile page to the previous step to edit their profile.
+- Allow users to skip on the gym location page to the next step to create your profile.
+- Updated the onboarding/registration pages to a more modern and sleek design.
+
+
+

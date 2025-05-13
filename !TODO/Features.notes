@@ -1,0 +1,32 @@
+* Main Challenges *
+
+Technical Complexity:
+Location-based matching requires geospatial indexing and efficient algorithms
+Real-time features (messaging, notifications, online status) need reliable infrastructure
+High-performance swiping interface must be smooth and responsive
+Matching algorithms become complex as you try to improve match quality
+Scaling to handle thousands or millions of users and their data
+
+Backend Requirements:
+User authentication with secure profile verification
+Database design that can handle complex relationships and queries
+Storage solutions for photos and media
+API development to connect your mobile app with backend services
+
+Other Significant Challenges:
+Privacy and security are critical for dating apps (especially location data)
+Content moderation to prevent inappropriate content/behavior
+Preventing fake profiles and scammers
+# Push notification systems that work reliably across devices
+
+For a solo developer or small team:
+Start with a simplified version (core features only)
+Use existing services (Firebase, AWS Amplify, Supabase) to reduce backend complexity
+Focus on one platform initially (iOS or Android)
+
+MVP approach:
+Basic profiles and photos ✅
+Simple swiping interface ✅
+Basic matching
+Text-only messaging ✅
+Limited geographic scope ✅
