@@ -106,5 +106,15 @@ Physical Device	--lan or --tunnel #LAN works if both are on same network; tunnel
 - Allow users to skip on the gym location page to the next step to create your profile.
 - Updated the onboarding/registration pages to a more modern and sleek design.
 
+== 14 MAY 2025 ==
+TODO:
+- Create a profile page to display the user's profile information.
+- Check and remove certain settings that are not needed in the settings page.
+- Add a new page for the user to view the profiles of other users.
+- Add the features into "Discovery Prefences" in settings
+- How to allow users to start matching with other users? After swiping all the mock profiles, how to allow them to match with other users?
+
+
+
 
 
