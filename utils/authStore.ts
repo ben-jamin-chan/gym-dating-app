@@ -9,6 +9,7 @@ import {
   getCurrentUser,
   subscribeToAuthChanges
 } from './firebase';
+import { createDefaultPreferences } from '@/services/preferencesService';
 
 interface AuthState {
   user: User | null;
@@ -70,6 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await firebaseRegisterUser(email, password);
       console.log(`User registered successfully with ID: ${user.uid}`);
       set({ user, isLoading: false });
+      await createDefaultPreferences(user.uid);
       return user;
     } catch (error: any) {
       console.error('Registration error:', error.message || error);

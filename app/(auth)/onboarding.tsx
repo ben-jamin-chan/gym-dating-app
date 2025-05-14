@@ -8,6 +8,7 @@ import OnboardingStep from '@/components/auth/OnboardingStep';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/utils/authStore';
 import { saveUserProfile } from '@/utils/firebase';
+import { createDefaultPreferences } from '@/services/preferencesService';
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -83,6 +84,9 @@ export default function OnboardingScreen() {
       
       // Save to Firestore
       await saveUserProfile(user.uid, profileData);
+      
+      // Create default discovery preferences
+      await createDefaultPreferences(user.uid);
       
       return true;
     } catch (error) {

@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import SwipeCards from '@/components/cards/SwipeCards';
 import { UserProfile } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
-import { recordSwipe, getSwipedUsers, registerForPushNotifications } from '@/services/matchService';
+import { recordSwipe, getSwipedUsers, registerForPushNotifications, getPotentialMatchesWithPreferences } from '@/services/matchService';
+import { getCurrentUserPreferences } from '@/services/preferencesService';
 
 export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,9 @@ export default function DiscoverScreen() {
       // Get list of users the current user has already swiped on
       const swipedUserIds = await getSwipedUsers(currentUserId);
       
+      // Get the current user's preferences
+      const userPreferences = await getCurrentUserPreferences();
+      
       // In a real app, you would query Firestore for users matching criteria
       // and filter out users already swiped on
       // For this example, we'll create some dummy profiles
@@ -73,6 +77,8 @@ export default function DiscoverScreen() {
             bio: 'Yoga instructor and CrossFit competitor. Looking for someone to train with and explore new trails.',
             images: ['https://randomuser.me/api/portraits/women/32.jpg'],
             interests: ['CrossFit', 'Yoga', 'Nutrition', 'Hiking'],
+            gender: 'Female',
+            workoutFrequency: 'Daily',
             location: {
               latitude: 37.7749,
               longitude: -122.4194
@@ -85,6 +91,8 @@ export default function DiscoverScreen() {
             bio: 'Personal trainer who loves outdoor activities and trying new workout routines.',
             images: ['https://randomuser.me/api/portraits/women/44.jpg'],
             interests: ['Fitness', 'Running', 'Nutrition'],
+            gender: 'Female',
+            workoutFrequency: '3-5x/week',
             location: {
               latitude: 37.7833,
               longitude: -122.4167
@@ -97,6 +105,8 @@ export default function DiscoverScreen() {
             bio: 'Crossfit coach and mountain climber. Looking for a gym buddy who enjoys protein shakes!',
             images: ['https://randomuser.me/api/portraits/women/68.jpg'],
             interests: ['Crossfit', 'Climbing', 'Protein Shakes'],
+            gender: 'Female',
+            workoutFrequency: 'Daily',
             location: {
               latitude: 37.7694,
               longitude: -122.4862
@@ -109,17 +119,78 @@ export default function DiscoverScreen() {
             bio: 'Gym owner and fitness blogger who never skips leg day. Coffee enthusiast.',
             images: ['https://randomuser.me/api/portraits/men/79.jpg'],
             interests: ['Weightlifting', 'Boxing', 'Meal Prep'],
+            gender: 'Male',
+            workoutFrequency: '3-5x/week',
             location: {
               latitude: 37.7855,
               longitude: -122.4012
             }
+          },
+          {
+            id: 'user5',
+            displayName: 'Mike Johnson',
+            age: 32,
+            bio: 'Marathon runner and yoga enthusiast. Looking for a workout partner with similar interests.',
+            images: ['https://randomuser.me/api/portraits/men/52.jpg'],
+            interests: ['Running', 'Yoga', 'Nutrition'],
+            gender: 'Male',
+            workoutFrequency: 'Daily',
+            location: {
+              latitude: 37.7935,
+              longitude: -122.3980
+            }
+          },
+          {
+            id: 'user6',
+            displayName: 'Alex Chen',
+            age: 24,
+            bio: 'Part-time fitness instructor, full-time fitness enthusiast. Love trying new workout classes!',
+            images: ['https://randomuser.me/api/portraits/women/90.jpg'],
+            interests: ['HIIT', 'Pilates', 'Dancing'],
+            gender: 'Female',
+            workoutFrequency: '1-2x/week',
+            location: {
+              latitude: 37.8044,
+              longitude: -122.4151
+            }
           }
         ];
         
-        // Filter out already swiped users
-        const filteredProfiles = dummyProfiles.filter(
+        // Filter profiles based on user preferences
+        let filteredProfiles = dummyProfiles.filter(
           profile => !swipedUserIds.includes(profile.id) && profile.id !== currentUserId
         );
+        
+        // Apply age filter if preferences exist
+        if (userPreferences?.ageRange) {
+          filteredProfiles = filteredProfiles.filter(
+            profile => profile.age >= userPreferences.ageRange.min && 
+                      profile.age <= userPreferences.ageRange.max
+          );
+        }
+        
+        // Apply gender filter if preferences exist and it's not 'all'
+        if (userPreferences?.genderPreference && userPreferences.genderPreference !== 'all') {
+          filteredProfiles = filteredProfiles.filter(
+            profile => profile.gender && userPreferences.genderPreference.includes(profile.gender)
+          );
+        }
+        
+        // Apply workout frequency filter if preferences exist and it's not 'All'
+        if (userPreferences?.workoutFrequencyPreference && 
+            !userPreferences.workoutFrequencyPreference.includes('All')) {
+          filteredProfiles = filteredProfiles.filter(
+            profile => profile.workoutFrequency && 
+                      userPreferences.workoutFrequencyPreference.includes(profile.workoutFrequency)
+          );
+        }
+        
+        // If global mode is off, apply distance filter
+        if (userPreferences && !userPreferences.globalMode) {
+          // In a real app, you would calculate actual distance
+          // For this demo, we'll just simulate distance filtering
+          // This is a simplified example - real app would use geolocation
+        }
         
         setProfiles(filteredProfiles);
         setNoMoreProfiles(filteredProfiles.length === 0);

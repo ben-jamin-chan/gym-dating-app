@@ -18,6 +18,19 @@ export type UserProfile = {
   gymLocation?: string;
 };
 
+export type UserPreferences = {
+  userId: string;
+  ageRange: {
+    min: number;
+    max: number;
+  };
+  maxDistance: number;
+  genderPreference: string[] | 'all';
+  workoutFrequencyPreference?: string[];
+  interestWeights?: Record<string, number>;
+  globalMode?: boolean;
+};
+
 export type Match = {
   id: string;
   userId: string;

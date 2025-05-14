@@ -23,6 +23,7 @@ import {
   onMessage 
 } from 'firebase/messaging';
 import { db } from '../utils/firebase';
+import { getUserPreferences } from './preferencesService';
 
 // Types for our matching system
 export interface Swipe {
@@ -280,5 +281,32 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
     console.error('Error registering for push notifications:', error);
     // Don't throw, just return null as this is not critical functionality
     return null;
+  }
+};
+
+/**
+ * Fetch potential matches for a user based on their preferences
+ * @param userId The ID of the user seeking matches
+ * @returns Promise resolving with potential matches
+ */
+export const getPotentialMatchesWithPreferences = async (userId: string): Promise<UserProfile[]> => {
+  try {
+    // Get the user's preferences
+    const preferences = await getUserPreferences(userId);
+    
+    // Get users the current user has already swiped on
+    const swipedUserIds = await getSwipedUsers(userId);
+    
+    // Build the query parameters based on preferences
+    // For simplicity, we're not implementing the actual Firestore query here
+    // In a real app, you would construct a Firestore query with these filters
+    
+    // Collect all users that match the criteria
+    // This is a placeholder for a real query - in a real app you'd fetch this from Firestore
+    // For now, we'll return an empty array since this is just a demo
+    return [];
+  } catch (error) {
+    console.error('Error getting potential matches with preferences:', error);
+    throw error;
   }
 }; 
