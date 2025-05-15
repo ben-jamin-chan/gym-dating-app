@@ -71,9 +71,7 @@ Make the UI aesthetic with soft card shadows, rounded edges, and gym-themed colo
 1. Issue with (npx expo start --ios) to test for firbase auth sign in still not working, but it works on the web. 
 2. Issue with the iOS simulator (npx expo start --ios) not able to sign in with firebase auth # is due to the iOS simulator not being able to connect to the internet. #
    - Fixed with the below commands:
-      xcrun simctl shutdown all
-      xcrun simctl erase all
-      open -a Simulator
+
 
       npx expo start
    - Then, I can run (npx expo start --ios) to test on the iOS simulator.
@@ -108,12 +106,16 @@ Physical Device	--lan or --tunnel #LAN works if both are on same network; tunnel
 
 == 14 MAY 2025 ==
 TODO:
-- Create a profile page to display the user's profile information.
+- Create a profile page to display the user's profile information. * DONE *
 - Check and remove certain settings that are not needed in the settings page. * TO DO IT MANUALLY *
-- Add a new page for the user to view the profiles of other users.
-- Add the features into "Discovery Prefences" in settings
+- Add a new page for the user to view the profiles of other users. * DONE *
+- Add the features into "Discovery Prefences" in settings * DONE *
 - How to allow users to start matching with other users? After swiping all the mock profiles, how to allow them to match with other users?
 
+== 15 MAY 2025 ==
+- Added a new page for the user to view the profiles of other users.
+- Added a button in the profile page for the current user to view and edit their profile.
+- Added mock profiles to the app.
 
 
 

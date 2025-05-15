@@ -139,6 +139,16 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="chat/[id]" options={{ headerShown: false, presentation: 'modal' }} />
+          <Stack.Screen 
+            name="user-profile" 
+            options={{ 
+              headerShown: false, 
+              presentation: 'card',
+              animation: 'slide_from_right',
+              animationDuration: 200
+            }} 
+          />
+          <Stack.Screen name="seed-profiles" options={{ headerShown: true, presentation: 'modal' }} />
           <Stack.Screen name="+not-found" options={{ headerShown: false }} />
         </Stack>
         <NetworkMonitor />

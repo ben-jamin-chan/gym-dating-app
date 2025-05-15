@@ -7,7 +7,7 @@ import Header from '@/components/ui/Header';
 import ProfileHeader from '@/components/profile/ProfileHeader';
 import ProfileSection from '@/components/profile/ProfileSection';
 import ProfileAction from '@/components/profile/ProfileAction';
-import { Settings, Bell, Shield, CircleHelp as HelpCircle, LogOut, RefreshCw, Wifi, Edit2 as Edit } from 'lucide-react-native';
+import { Settings, Bell, Shield, CircleHelp as HelpCircle, LogOut, RefreshCw, Wifi, Edit2 as Edit, Eye } from 'lucide-react-native';
 import { useAuthStore } from '@/utils/authStore';
 import { getUserProfile } from '@/utils/firebase';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -152,6 +152,10 @@ export default function ProfileScreen() {
     router.push('/edit-profile');
   };
   
+  const handleViewProfile = () => {
+    router.push('/user-profile');
+  };
+  
   const handleRefresh = () => {
     fetchUserProfile();
   };
@@ -239,6 +243,15 @@ export default function ProfileScreen() {
         {profileData && <ProfileHeader user={profileData} />}
         
         <View style={styles.sections}>
+          {/* View Profile Button */}
+          <TouchableOpacity
+            style={styles.viewProfileButton}
+            onPress={handleViewProfile}
+          >
+            <Eye size={18} color="#FFFFFF" />
+            <RNText style={styles.viewProfileButtonText}>View Profile Card</RNText>
+          </TouchableOpacity>
+          
           {/* Edit Profile Button */}
           <TouchableOpacity
             style={styles.editProfileButton}
@@ -276,6 +289,11 @@ export default function ProfileScreen() {
               icon={<Wifi size={22} color="#6B7280" />}
               title="Network Diagnostics"
               onPress={() => router.push('/diagnostics')}
+            />
+            <ProfileAction
+              icon={<Settings size={22} color="#6B7280" />}
+              title="Seed Test Profiles"
+              onPress={() => router.push('/seed-profiles')}
             />
           </ProfileSection>
           
@@ -381,6 +399,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   editProfileButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  viewProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8B5CF6', // Purple color for distinction
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  viewProfileButtonText: {
     color: '#FFFFFF',
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,

@@ -9,12 +9,14 @@ import { UserProfile } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
 import { recordSwipe, getSwipedUsers, registerForPushNotifications, getPotentialMatchesWithPreferences } from '@/services/matchService';
 import { getCurrentUserPreferences } from '@/services/preferencesService';
+import { useLocalSearchParams } from 'expo-router';
 
 export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [noMoreProfiles, setNoMoreProfiles] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { refresh } = useLocalSearchParams();
 
   // Register for push notifications when the screen loads
   useEffect(() => {
@@ -37,7 +39,7 @@ export default function DiscoverScreen() {
     }
   }, []);
 
-  // Fetch potential matches whenever the screen comes into focus
+  // Fetch potential matches whenever the screen comes into focus or refresh param changes
   useFocusEffect(
     useCallback(() => {
       if (currentUserId) {
@@ -47,7 +49,7 @@ export default function DiscoverScreen() {
       return () => {
         // Cleanup if needed
       };
-    }, [currentUserId])
+    }, [currentUserId, refresh])
   );
 
   // Function to fetch potential matches from Firebase
@@ -57,146 +59,24 @@ export default function DiscoverScreen() {
     setLoading(true);
     
     try {
-      // Get list of users the current user has already swiped on
-      const swipedUserIds = await getSwipedUsers(currentUserId);
+      console.log('Fetching potential matches for user:', currentUserId);
       
-      // Get the current user's preferences
-      const userPreferences = await getCurrentUserPreferences();
+      // Get real profiles from Firestore using our updated function
+      const matchedProfiles = await getPotentialMatchesWithPreferences(currentUserId);
       
-      // In a real app, you would query Firestore for users matching criteria
-      // and filter out users already swiped on
-      // For this example, we'll create some dummy profiles
+      // Log the results for debugging
+      console.log(`Fetched ${matchedProfiles.length} potential matches`);
       
-      // Simulate a Firestore query
-      setTimeout(() => {
-        const dummyProfiles: UserProfile[] = [
-          {
-            id: 'user1',
-            displayName: 'Emma Wilson',
-            age: 26,
-            bio: 'Yoga instructor and CrossFit competitor. Looking for someone to train with and explore new trails.',
-            images: ['https://randomuser.me/api/portraits/women/32.jpg'],
-            interests: ['CrossFit', 'Yoga', 'Nutrition', 'Hiking'],
-            gender: 'Female',
-            workoutFrequency: 'Daily',
-            location: {
-              latitude: 37.7749,
-              longitude: -122.4194
-            }
-          },
-          {
-            id: 'user2',
-            displayName: 'Taylor Smith',
-            age: 27,
-            bio: 'Personal trainer who loves outdoor activities and trying new workout routines.',
-            images: ['https://randomuser.me/api/portraits/women/44.jpg'],
-            interests: ['Fitness', 'Running', 'Nutrition'],
-            gender: 'Female',
-            workoutFrequency: '3-5x/week',
-            location: {
-              latitude: 37.7833,
-              longitude: -122.4167
-            }
-          },
-          {
-            id: 'user3',
-            displayName: 'Jamie Lee',
-            age: 30,
-            bio: 'Crossfit coach and mountain climber. Looking for a gym buddy who enjoys protein shakes!',
-            images: ['https://randomuser.me/api/portraits/women/68.jpg'],
-            interests: ['Crossfit', 'Climbing', 'Protein Shakes'],
-            gender: 'Female',
-            workoutFrequency: 'Daily',
-            location: {
-              latitude: 37.7694,
-              longitude: -122.4862
-            }
-          },
-          {
-            id: 'user4',
-            displayName: 'Chris Morgan',
-            age: 29,
-            bio: 'Gym owner and fitness blogger who never skips leg day. Coffee enthusiast.',
-            images: ['https://randomuser.me/api/portraits/men/79.jpg'],
-            interests: ['Weightlifting', 'Boxing', 'Meal Prep'],
-            gender: 'Male',
-            workoutFrequency: '3-5x/week',
-            location: {
-              latitude: 37.7855,
-              longitude: -122.4012
-            }
-          },
-          {
-            id: 'user5',
-            displayName: 'Mike Johnson',
-            age: 32,
-            bio: 'Marathon runner and yoga enthusiast. Looking for a workout partner with similar interests.',
-            images: ['https://randomuser.me/api/portraits/men/52.jpg'],
-            interests: ['Running', 'Yoga', 'Nutrition'],
-            gender: 'Male',
-            workoutFrequency: 'Daily',
-            location: {
-              latitude: 37.7935,
-              longitude: -122.3980
-            }
-          },
-          {
-            id: 'user6',
-            displayName: 'Alex Chen',
-            age: 24,
-            bio: 'Part-time fitness instructor, full-time fitness enthusiast. Love trying new workout classes!',
-            images: ['https://randomuser.me/api/portraits/women/90.jpg'],
-            interests: ['HIIT', 'Pilates', 'Dancing'],
-            gender: 'Female',
-            workoutFrequency: '1-2x/week',
-            location: {
-              latitude: 37.8044,
-              longitude: -122.4151
-            }
-          }
-        ];
-        
-        // Filter profiles based on user preferences
-        let filteredProfiles = dummyProfiles.filter(
-          profile => !swipedUserIds.includes(profile.id) && profile.id !== currentUserId
-        );
-        
-        // Apply age filter if preferences exist
-        if (userPreferences?.ageRange) {
-          filteredProfiles = filteredProfiles.filter(
-            profile => profile.age >= userPreferences.ageRange.min && 
-                      profile.age <= userPreferences.ageRange.max
-          );
-        }
-        
-        // Apply gender filter if preferences exist and it's not 'all'
-        if (userPreferences?.genderPreference && userPreferences.genderPreference !== 'all') {
-          filteredProfiles = filteredProfiles.filter(
-            profile => profile.gender && userPreferences.genderPreference.includes(profile.gender)
-          );
-        }
-        
-        // Apply workout frequency filter if preferences exist and it's not 'All'
-        if (userPreferences?.workoutFrequencyPreference && 
-            !userPreferences.workoutFrequencyPreference.includes('All')) {
-          filteredProfiles = filteredProfiles.filter(
-            profile => profile.workoutFrequency && 
-                      userPreferences.workoutFrequencyPreference.includes(profile.workoutFrequency)
-          );
-        }
-        
-        // If global mode is off, apply distance filter
-        if (userPreferences && !userPreferences.globalMode) {
-          // In a real app, you would calculate actual distance
-          // For this demo, we'll just simulate distance filtering
-          // This is a simplified example - real app would use geolocation
-        }
-        
-        setProfiles(filteredProfiles);
-        setNoMoreProfiles(filteredProfiles.length === 0);
-        setLoading(false);
-      }, 1000);
+      if (matchedProfiles.length === 0) {
+        console.log('No profiles found, setting noMoreProfiles to true');
+        setNoMoreProfiles(true);
+      } else {
+        console.log('Profiles found, updating state');
+        setProfiles(matchedProfiles);
+        setNoMoreProfiles(false);
+      }
       
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching potential matches:', error);
       setLoading(false);

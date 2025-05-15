@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, StyleSheet, Image, Text, Platform } from 'react-native';
+import { View, StyleSheet, Image, Text, Platform, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin, Dumbbell, Calendar } from 'lucide-react-native';
 import { UserProfile } from '@/types';
+import { useRouter } from 'expo-router';
 
 type ProfileCardProps = {
   profile: UserProfile;
@@ -10,10 +11,26 @@ type ProfileCardProps = {
 };
 
 export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
+  const router = useRouter();
+
+  const handleProfilePress = () => {
+    router.push(`/user-profile?userId=${profile.id}`);
+  };
+
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      style={styles.container} 
+      onPress={handleProfilePress}
+      activeOpacity={0.95}
+    >
       <Image 
-        source={{ uri: profile.images && profile.images.length > 0 ? profile.images[0] : 'https://via.placeholder.com/400x600' }}
+        source={{ 
+          uri: profile.images && profile.images.length > 0 
+              ? profile.images[0] 
+              : profile.photos && profile.photos.length > 0 
+                ? profile.photos[0] 
+                : profile.photoURL || 'https://via.placeholder.com/400x600' 
+        }}
         style={styles.image}
         resizeMode="cover"
       />
@@ -79,7 +96,7 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
           ))}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 

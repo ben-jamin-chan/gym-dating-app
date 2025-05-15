@@ -24,6 +24,7 @@ import {
 } from 'firebase/messaging';
 import { db } from '../utils/firebase';
 import { getUserPreferences } from './preferencesService';
+import { UserProfile } from '@/types';
 
 // Types for our matching system
 export interface Swipe {
@@ -297,14 +298,73 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
     // Get users the current user has already swiped on
     const swipedUserIds = await getSwipedUsers(userId);
     
-    // Build the query parameters based on preferences
-    // For simplicity, we're not implementing the actual Firestore query here
-    // In a real app, you would construct a Firestore query with these filters
+    // Get all users from the users collection
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
     
-    // Collect all users that match the criteria
-    // This is a placeholder for a real query - in a real app you'd fetch this from Firestore
-    // For now, we'll return an empty array since this is just a demo
-    return [];
+    const potentialMatches: UserProfile[] = [];
+    
+    // Process each user document
+    usersSnapshot.forEach((doc) => {
+      const userData = doc.data();
+      
+      // Skip the current user
+      if (doc.id === userId) {
+        return;
+      }
+      
+      // Skip users already swiped on
+      if (swipedUserIds.includes(doc.id)) {
+        return;
+      }
+      
+      // Create a UserProfile object
+      const userProfile: UserProfile = {
+        id: doc.id,
+        displayName: userData.displayName || userData.name || 'User',
+        age: userData.age || 25,
+        bio: userData.bio || 'No bio available',
+        images: userData.images || userData.photos || (userData.photoURL ? [userData.photoURL] : []),
+        interests: userData.interests || [],
+        gender: userData.gender || 'Not specified',
+        workoutFrequency: userData.workoutFrequency || 'Not specified',
+        location: userData.location || null,
+        gymCheckIns: userData.gymCheckIns || 0,
+      };
+      
+      // Apply preferences filtering if preferences exist
+      if (preferences) {
+        // Age filter
+        if (preferences.ageRange && userProfile.age) {
+          if (userProfile.age < preferences.ageRange.min || userProfile.age > preferences.ageRange.max) {
+            return; // Skip this profile
+          }
+        }
+        
+        // Gender filter
+        if (preferences.genderPreference && preferences.genderPreference !== 'all' && userProfile.gender) {
+          if (!preferences.genderPreference.includes(userProfile.gender)) {
+            return; // Skip this profile
+          }
+        }
+        
+        // Workout frequency filter
+        if (preferences.workoutFrequencyPreference && 
+            !preferences.workoutFrequencyPreference.includes('All') && 
+            userProfile.workoutFrequency) {
+          if (!preferences.workoutFrequencyPreference.includes(userProfile.workoutFrequency)) {
+            return; // Skip this profile
+          }
+        }
+      }
+      
+      // Add matching profile to results
+      potentialMatches.push(userProfile);
+    });
+    
+    console.log(`Found ${potentialMatches.length} potential matches for user ${userId}`);
+    
+    return potentialMatches;
   } catch (error) {
     console.error('Error getting potential matches with preferences:', error);
     throw error;
