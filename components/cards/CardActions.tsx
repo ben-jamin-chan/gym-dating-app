@@ -11,6 +11,7 @@ type CardActionsProps = {
 
 export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: CardActionsProps) {
   const handleSwipeLeft = () => {
+    console.log("Action button: Swipe Left (Dislike)");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -18,6 +19,7 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
   };
 
   const handleSwipeRight = () => {
+    console.log("Action button: Swipe Right (Like)");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
@@ -25,6 +27,7 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
   };
 
   const handleSuperLike = () => {
+    console.log("Action button: Super Like");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
@@ -36,6 +39,7 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
       <TouchableOpacity 
         style={[styles.button, styles.nopeButton]}
         onPress={handleSwipeLeft}
+        activeOpacity={0.7}
       >
         <X size={30} color="#F87171" />
       </TouchableOpacity>
@@ -43,6 +47,7 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
       <TouchableOpacity 
         style={[styles.button, styles.superlikeButton]}
         onPress={handleSuperLike}
+        activeOpacity={0.7}
       >
         <Star size={30} color="#60A5FA" />
       </TouchableOpacity>
@@ -50,6 +55,7 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
       <TouchableOpacity 
         style={[styles.button, styles.likeButton]}
         onPress={handleSwipeRight}
+        activeOpacity={0.7}
       >
         <Heart size={30} color="#FF5864" />
       </TouchableOpacity>
@@ -60,12 +66,14 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 55,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     width: '100%',
-    gap: 16,
+    gap: 26,
+    paddingHorizontal: 10,
+    zIndex: 10,
   },
   button: {
     width: 60,
@@ -78,15 +86,15 @@ const styles = StyleSheet.create({
       web: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.15,
         shadowRadius: 8,
       },
       default: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
         shadowRadius: 8,
-        elevation: 5,
+        elevation: 6,
       }
     }),
   },

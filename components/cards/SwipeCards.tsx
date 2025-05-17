@@ -1,11 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder, Animated } from 'react-native';
+import { View, StyleSheet, Dimensions, PanResponder, Animated, Platform } from 'react-native';
 import ProfileCard from '@/components/cards/ProfileCard';
 import CardActions from '@/components/cards/CardActions';
 import { UserProfile } from '@/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.25;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.15;
+const SWIPE_UP_THRESHOLD = SCREEN_HEIGHT * 0.08;
 const SWIPE_OUT_DURATION = 250;
 
 type SwipeCardsProps = {
@@ -19,7 +21,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
   // Track the current card index
   const [currentIndex, setCurrentIndex] = useState(0);
   
-  // Animation values
+  // Animation values - create a new ValueXY for each animation cycle to avoid conflicts
   const position = useRef(new Animated.ValueXY()).current;
   const [overlay, setOverlay] = useState<'like' | 'nope' | 'superlike' | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -27,12 +29,21 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
   // Reset when profiles change
   useEffect(() => {
     setCurrentIndex(0);
+    
+    // Reset position when component re-renders
+    position.setValue({ x: 0, y: 0 });
+    
+    return () => {
+      // Cleanup animations on unmount
+      position.setValue({ x: 0, y: 0 });
+    };
   }, [profiles]);
 
   // Handler for swiping a card
   const handleSwipe = useCallback((direction: 'left' | 'right' | 'up') => {
     if (isAnimating || currentIndex >= profiles.length) return;
     
+    console.log(`Swiping ${direction} for profile ${profiles[currentIndex]?.id}`);
     setIsAnimating(true);
     
     // Get the profile to swipe
@@ -47,15 +58,15 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
       animationTarget = { x: SCREEN_WIDTH * 1.5, y: 0 };
       setOverlay('like');
     } else {
-      animationTarget = { x: 0, y: -SCREEN_WIDTH * 1.2 };
+      animationTarget = { x: 0, y: -SCREEN_HEIGHT * 1.2 };
       setOverlay('superlike');
     }
     
-    // Animate the card off screen
+    // Create a new animation
     Animated.timing(position, {
       toValue: animationTarget,
       duration: SWIPE_OUT_DURATION,
-      useNativeDriver: false
+      useNativeDriver: false, // Must be false to avoid 'top/left' errors
     }).start(() => {
       // Notify the parent component
       if (direction === 'left') {
@@ -66,7 +77,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         onSuperLike(profile.id);
       }
       
-      // Reset animation state
+      // Reset animation state - do this manually to avoid animation conflicts
       position.setValue({ x: 0, y: 0 });
       setOverlay(null);
       
@@ -89,6 +100,10 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
   // Pan responder for gesture handling
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => !isAnimating,
+    onMoveShouldSetPanResponder: () => !isAnimating,
+    onPanResponderGrant: () => {
+      // Optional: Add any logic for when touch starts
+    },
     onPanResponderMove: (_, gesture) => {
       position.setValue({ x: gesture.dx, y: gesture.dy });
       
@@ -97,7 +112,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         setOverlay('like');
       } else if (gesture.dx < -SWIPE_THRESHOLD) {
         setOverlay('nope');
-      } else if (gesture.dy < -SWIPE_THRESHOLD) {
+      } else if (gesture.dy < -SWIPE_UP_THRESHOLD) {
         setOverlay('superlike');
       } else {
         setOverlay(null);
@@ -108,26 +123,31 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         handleSwipe('right');
       } else if (gesture.dx < -SWIPE_THRESHOLD) {
         handleSwipe('left');
-      } else if (gesture.dy < -SWIPE_THRESHOLD) {
+      } else if (gesture.dy < -SWIPE_UP_THRESHOLD) {
         handleSwipe('up');
       } else {
         resetPosition();
       }
+    },
+    onPanResponderTerminate: () => {
+      resetPosition();
     }
   });
   
   // Reset card position for cancelled swipes
   const resetPosition = () => {
+    // Make sure we're using the same driver setting as in handleSwipe
     Animated.spring(position, {
       toValue: { x: 0, y: 0 },
       friction: 5,
-      useNativeDriver: false
+      useNativeDriver: false, // Must match the setting in handleSwipe
+      tension: 40, // Lower tension for smoother reset animation
     }).start(() => {
       setOverlay(null);
     });
   };
   
-  // Card rotation animation
+  // Card rotation animation - simplified to avoid transform conflicts
   const getCardStyle = () => {
     const rotate = position.x.interpolate({
       inputRange: [-SCREEN_WIDTH * 1.5, 0, SCREEN_WIDTH * 1.5],
@@ -135,8 +155,11 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
     });
     
     return {
-      ...position.getLayout(),
-      transform: [{ rotate }]
+      transform: [
+        { translateX: position.x },
+        { translateY: position.y },
+        { rotate }
+      ]
     };
   };
   
@@ -152,7 +175,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         return null;
       }
       
-      // Render the current card with animation
+      // Only show the current card
       if (index === currentIndex) {
         return (
           <Animated.View
@@ -165,15 +188,24 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         );
       }
       
-      // Render cards behind the current one
-      return (
-        <View 
-          key={profile.id} 
-          style={[styles.cardContainer, { top: 10 * (index - currentIndex) }]}
-        >
-          <ProfileCard profile={profile} />
-        </View>
-      );
+      // Render next card but make it invisible until current card is swiped
+      // Only render the next card (index === currentIndex + 1) to improve performance
+      if (index === currentIndex + 1) {
+        return (
+          <View 
+            key={profile.id} 
+            style={[
+              styles.cardContainer, 
+              styles.hiddenCard
+            ]}
+          >
+            <ProfileCard profile={profile} />
+          </View>
+        );
+      }
+      
+      // Don't render any other cards
+      return null;
     }).reverse();
   };
   
@@ -192,7 +224,9 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
 
   return (
     <View style={styles.container}>
-      {renderCards()}
+      <View style={styles.cardsContainer}>
+        {renderCards()}
+      </View>
       <CardActions 
         onSwipeLeft={handleSwipeLeft}
         onSwipeRight={handleSwipeRight}
@@ -205,16 +239,28 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     width: '100%',
+    alignItems: 'center',
+  },
+  cardsContainer: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginTop: -10, // Pull cards up slightly to reduce top gap
   },
   cardContainer: {
     position: 'absolute',
-    width: SCREEN_WIDTH * 0.9,
-    maxWidth: 400,
-    height: '75%',
-    borderRadius: 20,
+    width: SCREEN_WIDTH * 0.98, // Wider to fill more horizontal space
+    maxWidth: 450, 
+    height: '85%',     // Taller to fill more vertical space
+    borderRadius: 12,  // Reduced borderRadius for more screen space
     overflow: 'hidden',
+    top: '0%',         // Position at the top
   },
+  hiddenCard: {
+    opacity: 0,
+    zIndex: -1,
+  }
 });

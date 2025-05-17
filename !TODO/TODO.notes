@@ -71,6 +71,8 @@ Make the UI aesthetic with soft card shadows, rounded edges, and gym-themed colo
 1. Issue with (npx expo start --ios) to test for firbase auth sign in still not working, but it works on the web. 
 2. Issue with the iOS simulator (npx expo start --ios) not able to sign in with firebase auth # is due to the iOS simulator not being able to connect to the internet. #
    - Fixed with the below commands:
+      xcrun simctl shutdown all
+      xcrun simctl erase all
 
 
       npx expo start
@@ -118,10 +120,18 @@ TODO:
 - Added mock profiles to the app.
 
 == 16 MAY 2025 ==
-- Test and see if mock profiles are working.
+- Test and see if mock profiles are working. * FIXED *
 - Test and see if the swipe and match features are working.
 - Test and see if the chat features are working.
-- Test and see if the settings features are working.
-- Test and see if the profile features are working.
+- Test and see if the settings features are working. * DONE *
+- Test and see if the profile features are working. * DONE *
 
+
+// I was able to log in to the app earlier using npx expo start in ios simulator, but now there seems to be some errors, can you please fix it?
+
+I am building a gym themed dating app similar to Tinder's dating app function. 
+
+In the onboarding/registration page for the user please allow users to select their WorkoutFrequency to match the settings page to reflect the below which can be found in the edit-profile.tsx file.
+
+const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
 

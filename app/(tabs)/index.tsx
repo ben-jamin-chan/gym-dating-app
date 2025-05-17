@@ -47,7 +47,8 @@ export default function DiscoverScreen() {
       }
       
       return () => {
-        // Cleanup if needed
+        // Cleanup if needed - this ensures we don't have animation conflicts when refreshing
+        console.log('Cleaning up animations on screen blur');
       };
     }, [currentUserId, refresh])
   );

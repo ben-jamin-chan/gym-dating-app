@@ -1,3 +1,6 @@
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
+// Polyfill random values and URL for Firebase Auth on React Native
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
@@ -33,10 +36,7 @@ import {
   User,
   indexedDBLocalPersistence,
   inMemoryPersistence,
-  initializeAuth,
-  browserLocalPersistence,
-  setPersistence,
-  browserSessionPersistence
+  setPersistence
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
@@ -64,22 +64,17 @@ const db = getFirestore(app);
 export { db };
 
 // Initialize Auth
-let auth;
-try {
-  if (Platform.OS !== 'web') {
-    // For React Native, use regular getAuth
-    auth = getAuth(app);
-    console.log('Firebase Auth initialized for React Native');
-  } else {
-    // For web, use regular auth
-    auth = getAuth(app);
-    console.log('Firebase Auth initialized for web platform');
-  }
-} catch (error) {
-  console.error('Error initializing Firebase Auth:', error);
-  // Fallback to regular auth
-  auth = getAuth(app);
-  console.log('Firebase Auth initialized with fallback method');
+const auth = getAuth(app);
+if (Platform.OS !== 'web') {
+  setPersistence(auth, inMemoryPersistence)
+    .then(() => console.log('Firebase Auth persistence set to in-memory'))
+    .catch(err => console.error('Error setting in-memory auth persistence:', err));
+  console.log('Firebase Auth initialized for React Native');
+} else {
+  setPersistence(auth, indexedDBLocalPersistence)
+    .then(() => console.log('Firebase Auth web persistence set to IndexedDB'))
+    .catch(err => console.error('Error setting web auth persistence:', err));
+  console.log('Firebase Auth initialized for web platform');
 }
 
 // Key to store auth data in AsyncStorage

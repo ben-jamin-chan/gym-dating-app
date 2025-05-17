@@ -14,7 +14,21 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
   const router = useRouter();
 
   const handleProfilePress = () => {
+    // Add logging to debug profile navigation
+    console.log(`Navigating to profile: ${profile.id}`);
     router.push(`/user-profile?userId=${profile.id}`);
+  };
+
+  // Get appropriate image source with fallback
+  const getImageSource = () => {
+    if (profile.images && profile.images.length > 0) {
+      return { uri: profile.images[0] };
+    } else if (profile.photos && profile.photos.length > 0) {
+      return { uri: profile.photos[0] };
+    } else if (profile.photoURL) {
+      return { uri: profile.photoURL };
+    }
+    return { uri: 'https://via.placeholder.com/400x600' };
   };
 
   return (
@@ -24,16 +38,11 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
       activeOpacity={0.95}
     >
       <Image 
-        source={{ 
-          uri: profile.images && profile.images.length > 0 
-              ? profile.images[0] 
-              : profile.photos && profile.photos.length > 0 
-                ? profile.photos[0] 
-                : profile.photoURL || 'https://via.placeholder.com/400x600' 
-        }}
+        source={getImageSource()}
         style={styles.image}
         resizeMode="cover"
       />
+      
       {/* Overlay for swipe feedback */}
       {overlay === 'like' && (
         <View style={[styles.overlay, { borderColor: '#22c55e', borderWidth: 4 }]}> 
@@ -47,9 +56,10 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
       )}
       {overlay === 'superlike' && (
         <View style={[styles.overlay, { borderColor: '#3b82f6', borderWidth: 4 }]}> 
-          <Text style={[styles.overlayText, { color: '#3b82f6' }]}>SUPERLIKE</Text>
+          <Text style={[styles.overlayText, { color: '#3b82f6' }]}>SUPER</Text>
         </View>
       )}
+      
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.8)']}
         style={styles.gradient}
@@ -57,7 +67,9 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
       
       <View style={styles.infoContainer}>
         <View style={styles.nameContainer}>
-          <Text style={styles.name}>{profile.displayName}, {profile.age}</Text>
+          <Text style={styles.name}>
+            {profile.displayName || profile.name}, {profile.age}
+          </Text>
           {profile.verified && (
             <View style={styles.verifiedBadge}>
               <Text style={styles.verifiedText}>Verified</Text>
@@ -79,17 +91,21 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
           
           <View style={styles.detailItem}>
             <Dumbbell size={16} color="#E5E7EB" />
-            <Text style={styles.detailText}>5-6 times/week</Text>
+            <Text style={styles.detailText}>
+              {profile.workoutFrequency || '5-6 times/week'}
+            </Text>
           </View>
           
           <View style={styles.detailItem}>
             <Calendar size={16} color="#E5E7EB" />
-            <Text style={styles.detailText}>12 check-ins this week</Text>
+            <Text style={styles.detailText}>
+              {profile.gymCheckIns || 12} check-ins this week
+            </Text>
           </View>
         </View>
         
         <View style={styles.tagsContainer}>
-          {profile.interests && profile.interests.map((interest, index) => (
+          {profile.interests && profile.interests.slice(0, 4).map((interest, index) => (
             <View key={index} style={styles.tag}>
               <Text style={styles.tagText}>{interest}</Text>
             </View>
@@ -103,9 +119,11 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
+    width: '100%',
+    height: '100%',
     ...Platform.select({
       web: {
         shadowColor: '#000',
@@ -122,6 +140,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
   gradient: {
     position: 'absolute',
@@ -135,18 +157,22 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
+    padding: 18,
   },
   nameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 4,
+    flexWrap: 'wrap',
   },
   name: {
     fontFamily: 'Inter-Bold',
     fontSize: 28,
     color: '#FFFFFF',
     marginRight: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   verifiedBadge: {
     backgroundColor: '#3B82F6',
