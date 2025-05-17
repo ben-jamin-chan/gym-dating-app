@@ -134,5 +134,8 @@ const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
 
 == 17 MAY 2025 ==
 - To update the onboarding/registration page for the users & the settings page to be reflected as the same. * DONE *
+# Which thinking models are as good as 3.7 sonnet thinking?
+   = Big refactors -> 3.7 sonnet thinking
+   = Small refactors -> 3.7 sonnet
+- 
 
-Which thinking models are as good as 3.7 sonnet thinking?
