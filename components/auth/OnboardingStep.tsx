@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TextInput } from 'react-native';
 import { Dumbbell as DumbbellIcon } from 'lucide-react-native';
 import GenderDropdown from './GenderDropdown';
+import FrequencySelector from '@/components/auth/FrequencySelector';
 
 type OnboardingStepProps = {
   title: string;
@@ -23,10 +24,15 @@ export default function OnboardingStep({
   // This is a simplified version - in a real app, you'd have specific form fields
   // for each step, validation, and proper state management
   
+  // Define the frequency options for workout
+  const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
+  const intensityOptions = ['Light', 'Moderate', 'Intense', 'Very Intense'];
+  const timeOptions = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Flexible'];
+  
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <DumbbellIcon size={32} color="#3B82F6" />
+        <DumbbellIcon size={32} color="#FF5864" />
       </View>
       
       <Text style={styles.title}>{title}</Text>
@@ -43,6 +49,60 @@ export default function OnboardingStep({
                 value={values[field] || ''}
                 onChange={(text) => onChangeValue(field, text)}
               />
+            );
+          }
+          
+          // Use FrequencySelector for specific fields
+          if (field === 'workoutFrequency') {
+            return (
+              <FrequencySelector
+                key={index}
+                title={formatFieldLabel(field)}
+                options={frequencyOptions}
+                value={values[field] || ''}
+                onChange={(value) => onChangeValue(field, value)}
+              />
+            );
+          }
+          
+          if (field === 'intensity') {
+            return (
+              <FrequencySelector
+                key={index}
+                title={formatFieldLabel(field)}
+                options={intensityOptions}
+                value={values[field] || ''}
+                onChange={(value) => onChangeValue(field, value)}
+              />
+            );
+          }
+          
+          if (field === 'preferred_time') {
+            return (
+              <FrequencySelector
+                key={index}
+                title={formatFieldLabel(field)}
+                options={timeOptions}
+                value={values[field] || ''}
+                onChange={(value) => onChangeValue(field, value)}
+              />
+            );
+          }
+          
+          // Special handling for location field to match the gym_name format
+          if (field === 'location') {
+            return (
+              <View key={index} style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Location</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Enter your gym's location"
+                  placeholderTextColor="#9CA3AF"
+                  value={values[field] || ''}
+                  onChangeText={(text) => onChangeValue(field, text)}
+                />
+                <Text style={styles.fieldHint}>City, neighborhood, or address</Text>
+              </View>
             );
           }
           
@@ -89,7 +149,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#FFEBEE',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -126,5 +186,11 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 16,
     color: '#111827',
+  },
+  fieldHint: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
   },
 });

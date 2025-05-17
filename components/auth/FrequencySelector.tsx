@@ -48,33 +48,34 @@ export default function FrequencySelector({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 16,
-    paddingHorizontal: 16,
+    marginVertical: 12,
   },
   title: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: '#374151',
+    marginBottom: 8,
+    fontFamily: 'Inter-Medium',
   },
   description: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontFamily: 'Inter-Regular',
   },
   optionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 8,
     marginTop: 8,
   },
   option: {
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 8,
-    marginRight: 8,
-    marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     minWidth: 100,
     alignItems: 'center',
   },
@@ -84,8 +85,9 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 14,
-    color: '#333',
+    color: '#374151',
     fontWeight: '500',
+    fontFamily: 'Inter-Medium',
   },
   selectedOptionText: {
     color: 'white',

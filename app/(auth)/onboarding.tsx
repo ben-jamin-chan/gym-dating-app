@@ -75,6 +75,11 @@ export default function OnboardingScreen() {
         age: formValues.age ? parseInt(formValues.age, 10) : null,
         height: formValues.height ? parseInt(formValues.height, 10) : null,
         weight: formValues.weight ? parseInt(formValues.weight, 10) : null,
+        // Make sure gym info and workout preferences are properly saved
+        workoutFrequency: formValues.workoutFrequency || '',
+        intensity: formValues.intensity || '',
+        preferred_time: formValues.preferred_time || '',
+        gym_name: formValues.gym_name || '',
         // Additional user data
         displayName: user.displayName,
         photoURL: user.photoURL,
@@ -182,7 +187,7 @@ export default function OnboardingScreen() {
             style={styles.backButton}
             disabled={isSubmitting}
           >
-            <ChevronLeft size={24} color="#3B82F6" />
+            <ChevronLeft size={24} color="#FF5864" />
             <Text style={styles.backButtonText}>Back</Text>
           </TouchableOpacity>
         )}
@@ -234,7 +239,7 @@ const styles = StyleSheet.create({
   skipButtonText: {
     fontFamily: 'Inter-Medium',
     fontSize: 16,
-    color: '#3B82F6',
+    color: '#FF5864',
   },
   progressContainer: {
     paddingHorizontal: 20,
@@ -257,7 +262,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   progressStepActive: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#FF5864',
   },
   progressText: {
     fontFamily: 'Inter-Medium',
@@ -288,14 +293,14 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontFamily: 'Inter-Medium',
     fontSize: 16,
-    color: '#3B82F6',
+    color: '#FF5864',
     marginLeft: 4,
   },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#FF5864',
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 20,

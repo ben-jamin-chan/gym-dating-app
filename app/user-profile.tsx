@@ -65,7 +65,19 @@ export default function UserProfileScreen() {
             workoutFrequency: profileData.workoutFrequency || 'Not specified',
             interests: profileData.interests || [],
             age: profileData.age || 'N/A',
-            bio: profileData.bio || 'No bio available'
+            bio: profileData.bio || 'No bio available',
+            // Onboarding fields
+            height: profileData.height || null,
+            weight: profileData.weight || null,
+            goal1: profileData.goal1 || '',
+            goal2: profileData.goal2 || '',
+            goal3: profileData.goal3 || '',
+            intensity: profileData.intensity || 'Not specified',
+            preferred_time: profileData.preferred_time || '',
+            gym_name: profileData.gym_name || '',
+            location: typeof profileData.location === 'string' 
+              ? profileData.location 
+              : (profileData.location ? 'Location available' : 'Location not available'),
           };
           setProfile(normalizedProfile);
           
@@ -387,6 +399,33 @@ export default function UserProfileScreen() {
           </View>
         )}
         
+        {/* Fitness Goals section */}
+        {(profile.goal1 || profile.goal2 || profile.goal3) && (
+          <View style={styles.goalsSection}>
+            <Text style={styles.sectionTitle}>Fitness Goals</Text>
+            <View style={styles.goalsList}>
+              {profile.goal1 && (
+                <View style={styles.goalItem}>
+                  <Ionicons name="trophy-outline" size={18} color="#9CA3AF" />
+                  <Text style={styles.goalText}>{profile.goal1}</Text>
+                </View>
+              )}
+              {profile.goal2 && (
+                <View style={styles.goalItem}>
+                  <Ionicons name="trophy-outline" size={18} color="#9CA3AF" />
+                  <Text style={styles.goalText}>{profile.goal2}</Text>
+                </View>
+              )}
+              {profile.goal3 && (
+                <View style={styles.goalItem}>
+                  <Ionicons name="trophy-outline" size={18} color="#9CA3AF" />
+                  <Text style={styles.goalText}>{profile.goal3}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        
         {/* Interests section */}
         {profile.interests && profile.interests.length > 0 && (
           <View style={styles.interestsSection}>
@@ -414,11 +453,57 @@ export default function UserProfileScreen() {
               <Text style={styles.statLabel}>Frequency</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{profile.interests?.length || 0}</Text>
-              <Text style={styles.statLabel}>Activities</Text>
+              <Text style={styles.statValue}>{profile.intensity || 'N/A'}</Text>
+              <Text style={styles.statLabel}>Intensity</Text>
             </View>
           </View>
         </View>
+        
+        {/* Body Stats */}
+        {(profile.height || profile.weight) && (
+          <View style={styles.bodyStatsSection}>
+            <Text style={styles.sectionTitle}>Body Stats</Text>
+            <View style={styles.statsContainer}>
+              {profile.height && (
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{profile.height}</Text>
+                  <Text style={styles.statLabel}>Height (cm)</Text>
+                </View>
+              )}
+              {profile.weight && (
+                <View style={styles.statItem}>
+                  <Text style={styles.statValue}>{profile.weight}</Text>
+                  <Text style={styles.statLabel}>Weight (kg)</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+        
+        {/* Gym Information */}
+        {(profile.gym_name || profile.preferred_time || profile.location) && (
+          <View style={styles.gymSection}>
+            <Text style={styles.sectionTitle}>Gym Information</Text>
+            {profile.gym_name && (
+              <View style={styles.infoItem}>
+                <Ionicons name="fitness-outline" size={18} color="#9CA3AF" />
+                <Text style={styles.infoText}>{profile.gym_name}</Text>
+              </View>
+            )}
+            {profile.location && (
+              <View style={styles.infoItem}>
+                <Ionicons name="location-outline" size={18} color="#9CA3AF" />
+                <Text style={styles.infoText}>{profile.location}</Text>
+              </View>
+            )}
+            {profile.preferred_time && (
+              <View style={styles.infoItem}>
+                <Ionicons name="time-outline" size={18} color="#9CA3AF" />
+                <Text style={styles.infoText}>Preferred time: {profile.preferred_time}</Text>
+              </View>
+            )}
+          </View>
+        )}
         
         {/* Video if available */}
         {profile.video && (
@@ -612,6 +697,26 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     lineHeight: 24,
   },
+  goalsSection: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  goalsList: {
+    paddingHorizontal: 16,
+  },
+  goalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  goalText: {
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#374151',
+  },
   interestsSection: {
     marginBottom: 20,
   },
@@ -760,5 +865,12 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     marginBottom: 12,
+  },
+  bodyStatsSection: {
+    marginBottom: 24,
+  },
+  gymSection: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
   },
 }); 

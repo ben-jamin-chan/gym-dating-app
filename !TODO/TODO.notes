@@ -74,7 +74,7 @@ Make the UI aesthetic with soft card shadows, rounded edges, and gym-themed colo
       xcrun simctl shutdown all
       xcrun simctl erase all
 
-
+      npx expo run:ios
       npx expo start
    - Then, I can run (npx expo start --ios) to test on the iOS simulator.
    - To proceed with the development, I can run (npx expo start) to test on the web to build the other features. 
@@ -133,4 +133,6 @@ In the onboarding/registration page for the user please allow users to select th
 const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
 
 == 17 MAY 2025 ==
-- To update the onboarding/registration page for the users & the settings page to be reflected as the same.
+- To update the onboarding/registration page for the users & the settings page to be reflected as the same. * DONE *
+
+Which thinking models are as good as 3.7 sonnet thinking?

@@ -1,21 +1,32 @@
 export type UserProfile = {
   id: string;
-  displayName: string;
+  displayName?: string;
+  name?: string;
+  email?: string;
+  photoURL?: string;
   age: number;
   bio: string;
-  images: string[];
+  images?: string[];
+  photos?: string[];
   verified?: boolean;
   interests: string[];
   location?: {
     latitude: number;
     longitude: number;
-  };
+  } | string;
   gender?: string;
   distance?: number;
   workoutFrequency?: string;
   gymCheckIns?: number;
   preferredWorkouts?: string[];
-  gymLocation?: string;
+  height?: number;
+  weight?: number;
+  goal1?: string;
+  goal2?: string;
+  goal3?: string;
+  intensity?: string;
+  preferred_time?: string;
+  gym_name?: string;
 };
 
 export type UserPreferences = {

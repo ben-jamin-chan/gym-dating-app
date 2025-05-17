@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   selectedItem: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: '#FFEBEE',
   },
   optionText: {
     fontFamily: 'Inter-Regular',
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   selectedText: {
     fontFamily: 'Inter-Bold',
-    color: '#3B82F6',
+    color: '#FF5864',
   },
   separator: {
     height: 1,
