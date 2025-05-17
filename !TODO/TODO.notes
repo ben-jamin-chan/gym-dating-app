@@ -126,12 +126,11 @@ TODO:
 - Test and see if the settings features are working. * DONE *
 - Test and see if the profile features are working. * DONE *
 
-
-// I was able to log in to the app earlier using npx expo start in ios simulator, but now there seems to be some errors, can you please fix it?
-
 I am building a gym themed dating app similar to Tinder's dating app function. 
 
 In the onboarding/registration page for the user please allow users to select their WorkoutFrequency to match the settings page to reflect the below which can be found in the edit-profile.tsx file.
 
 const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
 
+== 17 MAY 2025 ==
+- To update the onboarding/registration page for the users & the settings page to be reflected as the same.
