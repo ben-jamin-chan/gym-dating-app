@@ -139,3 +139,5 @@ const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
    = Small refactors -> 3.7 sonnet
 - 
 
+== 18 MAY 2025 ==
+- To add app to TestFlight for testing.
