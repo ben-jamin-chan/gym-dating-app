@@ -98,27 +98,37 @@ function formatTimestamp(timestamp: string): string {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
     
+    // Get time string format
+    const timeString = messageDate.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
     // If same day, return time
     if (messageDay.getTime() === today.getTime()) {
-      return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return timeString;
     }
     
     // If yesterday
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     if (messageDay.getTime() === yesterday.getTime()) {
-      return "Yesterday";
+      return `Yesterday, ${timeString}`;
     }
     
-    // If within the last week, return day name
+    // If within the last week, return day name and time
     const oneWeekAgo = new Date(today);
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 6);
     if (messageDay >= oneWeekAgo) {
-      return messageDate.toLocaleDateString([], { weekday: 'short' });
+      return messageDate.toLocaleDateString([], { weekday: 'short' }) + `, ${timeString}`;
     }
     
-    // Otherwise return date
-    return messageDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    // Otherwise return full date with time
+    return messageDate.toLocaleDateString([], { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    }) + `, ${timeString}`;
   } catch (error) {
     return "Just now";
   }

@@ -26,7 +26,8 @@ type ChatRoomProps = {
 const formatDateHeader = (date: Date): string => {
   // Check if it's a valid date
   if (isNaN(date.getTime())) {
-    return 'Today';
+    // For invalid dates, use current date but add a note
+    return 'Unknown Date';
   }
 
   const today = new Date();
@@ -178,12 +179,12 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     // Haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Create message object
+    // Create message object with precise timestamp
     const message: Omit<Message, 'id'> = {
       conversationId,
       sender: 'current-user',
       text: inputText.trim(),
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(), // This creates an accurate timestamp
       read: false,
       status: 'sending',
       type: 'text',

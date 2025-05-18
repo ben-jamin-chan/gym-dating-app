@@ -46,15 +46,17 @@ export default function ChatMessage({ message, showAvatar, isOwnMessage }: ChatM
       
       // Check if it's a valid date
       if (isNaN(messageDate.getTime())) {
-        // Return empty string for invalid dates
-        return "";
+        return new Date().toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
       }
       
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
       
-      // Get time string (e.g. "3:45 PM")
+      // Always get time string (e.g. "3:45 PM")
       const timeString = messageDate.toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit' 
@@ -82,15 +84,19 @@ export default function ChatMessage({ message, showAvatar, isOwnMessage }: ChatM
       // Otherwise show full date with time
       return messageDate.toLocaleDateString([], { 
         month: 'short', 
-        day: 'numeric' 
+        day: 'numeric',
+        year: 'numeric' 
       }) + `, ${timeString}`;
     } catch (error) {
-      // Return empty string for any errors
-      return "";
+      // Return current time for any errors
+      return new Date().toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
     }
   };
   
-  // Get formatted time
+  // Get formatted time - ensure it's always displayed
   const formattedTime = formatMessageTime(message.timestamp);
   
   // Render message status indicator for own messages
@@ -136,7 +142,7 @@ export default function ChatMessage({ message, showAvatar, isOwnMessage }: ChatM
         <Text style={textStyle}>{message.text}</Text>
         
         <View style={styles.messageFooter}>
-          {formattedTime ? <Text style={timeStyle}>{formattedTime}</Text> : null}
+          <Text style={timeStyle}>{formattedTime}</Text>
           {renderStatus()}
         </View>
       </View>

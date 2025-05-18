@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, User } from 'lucide-react-native';
 import { Conversation } from '@/types';
@@ -17,22 +17,49 @@ export default function ChatHeader({ conversation }: ChatHeaderProps) {
   const isUserOnline = conversation?.user?.online || false;
   const userName = conversation?.user?.name || 'User';
   const userId = conversation?.user?.id || conversation?.userId || 'unknown';
-  const userDistance = conversation?.user?.distance || 2; // Default to 2 miles if not provided
+  const userDistance = conversation?.user?.distance || 3; // Default to 3 km if not provided
   
   const handleBack = () => {
     router.back();
   };
   
   const handleViewProfile = () => {
-    // Navigate to the match's profile
-    router.push(`/profile/${userId}`);
+    // Check if we're dealing with a test user or real profile
+    if (userId === 'unknown' || userName === 'User') {
+      Alert.alert(
+        "Test Profile",
+        "This is a test or mock profile for development purposes. There's no actual user profile to display.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+    
+    // Navigate to the user's profile page
+    try {
+      router.push(`/user-profile?userId=${userId}`);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert(
+        "Navigation Error",
+        "Unable to view this user's profile at this time.",
+        [{ text: "OK" }]
+      );
+    }
   };
   
-  // Convert distance to kilometers (assuming distance is stored in miles)
-  const getDistanceInKm = () => {
-    // Convert miles to kilometers (1 mile = 1.60934 km)
-    const distanceInKm = Math.round(userDistance * 1.60934);
-    return `${distanceInKm} km away`;
+  // Get exact distance in km
+  const getDistanceDisplay = () => {
+    if (userId === 'unknown' || userName === 'User') {
+      // For test profiles
+      return `${userDistance} km away`;
+    }
+    
+    // For real profiles with actual distance data
+    if (typeof userDistance === 'number') {
+      return `${userDistance} km away`;
+    }
+    
+    return "Distance unavailable";
   };
 
   return (
@@ -52,7 +79,7 @@ export default function ChatHeader({ conversation }: ChatHeaderProps) {
         
         <View style={styles.userInfo}>
           <Text style={styles.name}>{userName}</Text>
-          <Text style={styles.distance}>{getDistanceInKm()}</Text>
+          <Text style={styles.distance}>{getDistanceDisplay()}</Text>
           <Text style={styles.status}>
             {isUserOnline ? 'Online' : 'Offline'}
           </Text>

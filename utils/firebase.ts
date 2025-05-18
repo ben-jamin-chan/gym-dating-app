@@ -43,6 +43,7 @@ import { Platform } from 'react-native';
 import { Message, Conversation, TypingIndicator } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 import { checkNetworkStatus, testInternetConnectivity } from './networkUtilsLite';
+import { GeoFirestore, GeoCollectionReference } from 'geofirestore';
 
 // Your Firebase configuration
 // Note: Replace with actual Firebase config values from your Firebase console
@@ -60,8 +61,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Initialize GeoFirestore with the Firestore instance
+const geoFirestore = new GeoFirestore(db as any);
+
 // Export Firestore database instance
-export { db };
+export { db, geoFirestore };
 
 // Initialize Auth
 const auth = getAuth(app);

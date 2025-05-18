@@ -96,7 +96,7 @@ export default function MatchesScreen() {
       </Text>
       <TouchableOpacity 
         style={styles.discoverButton}
-        onPress={() => router.push('/(tabs)/discover')}
+        onPress={() => router.push('/(tabs)')}
       >
         <Text style={styles.discoverButtonText}>
           Discover People
