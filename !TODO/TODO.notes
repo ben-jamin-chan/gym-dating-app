@@ -136,8 +136,10 @@ const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
 - To update the onboarding/registration page for the users & the settings page to be reflected as the same. * DONE *
 # Which thinking models are as good as 3.7 sonnet thinking?
    = Big refactors -> 3.7 sonnet thinking
-   = Small refactors -> 3.7 sonnet
-- 
+   = Small refactors -> 3.7 sonnet 
 
 == 18 MAY 2025 ==
-- To add app to TestFlight for testing.
+- To add app to TestFlight for testing. (?) 
+   -> Requires Apple Developer Account, $99/year
+- To find a way to test the app on the physical device.
+- Refactored the firebase.ts file to be more readable and maintainable. -> To be tested.

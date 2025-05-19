@@ -30,3 +30,7 @@ Simple swiping interface ✅
 Basic matching
 Text-only messaging ✅
 Limited geographic scope ✅
+
+# To fix the iOS simulator not being able to connect to the internet.
+xcrun simctl shutdown all
+xcrun simctl erase all
