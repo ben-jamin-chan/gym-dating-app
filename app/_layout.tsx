@@ -12,6 +12,7 @@ import { AuthProvider } from '@/components/auth/AuthProvider';
 import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
 import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { refreshFirestoreConnection } from '@/utils/firebase';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -21,6 +22,7 @@ export default function RootLayout() {
   const appState = useRef(AppState.currentState);
   const inactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveTime = useRef<number>(Date.now());
+  const hasResetFirestoreConnection = useRef(false);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -45,6 +47,18 @@ export default function RootLayout() {
     // This will automatically retry if it fails initially due to offline state
     scheduleSystemDocumentSetup();
     
+    // Refresh Firestore connection at startup to fix "Target ID already exists" errors
+    if (!hasResetFirestoreConnection.current) {
+      refreshFirestoreConnection()
+        .then(success => {
+          console.log('Firestore connection reset at startup:', success ? 'successful' : 'failed');
+          hasResetFirestoreConnection.current = true;
+        })
+        .catch(error => {
+          console.error('Error resetting Firestore connection:', error);
+        });
+    }
+    
     // Cleanup on unmount
     return () => {
       networkReconnectionManager.cleanup();
@@ -68,6 +82,15 @@ export default function RootLayout() {
         if (timeSinceLastActive > 30000) {
           console.log('App was inactive for a significant time, forcing reconnection');
           networkReconnectionManager.manualReconnect();
+          
+          // Also refresh the Firestore connection to fix any potential Target ID issues
+          refreshFirestoreConnection()
+            .then(success => {
+              console.log('Firestore connection reset after inactivity:', success ? 'successful' : 'failed');
+            })
+            .catch(error => {
+              console.error('Error resetting Firestore connection:', error);
+            });
         }
       }
       

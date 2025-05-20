@@ -43,19 +43,19 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
         resizeMode="cover"
       />
       
-      {/* Overlay for swipe feedback */}
+      {/* Overlay for swipe feedback - Tinder style positioning */}
       {overlay === 'like' && (
-        <View style={[styles.overlay, { borderColor: '#22c55e', borderWidth: 4 }]}> 
+        <View style={[styles.overlay, styles.likeOverlay]}> 
           <Text style={[styles.overlayText, { color: '#22c55e' }]}>LIKE</Text>
         </View>
       )}
       {overlay === 'nope' && (
-        <View style={[styles.overlay, { borderColor: '#ef4444', borderWidth: 4 }]}> 
+        <View style={[styles.overlay, styles.nopeOverlay]}> 
           <Text style={[styles.overlayText, { color: '#ef4444' }]}>NOPE</Text>
         </View>
       )}
       {overlay === 'superlike' && (
-        <View style={[styles.overlay, { borderColor: '#3b82f6', borderWidth: 4 }]}> 
+        <View style={[styles.overlay, styles.superlikeOverlay]}> 
           <Text style={[styles.overlayText, { color: '#3b82f6' }]}>SUPER</Text>
         </View>
       )}
@@ -223,15 +223,30 @@ const styles = StyleSheet.create({
   },
   overlay: {
     position: 'absolute',
-    top: 32,
-    left: 32,
     zIndex: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.85)',
-    alignSelf: 'flex-start',
+    borderWidth: 4,
+  },
+  likeOverlay: {
+    top: 32,
+    left: 32,
+    borderColor: '#22c55e',
     transform: [{ rotate: '-10deg' }],
+  },
+  nopeOverlay: {
+    top: 32,
+    right: 32,
+    borderColor: '#ef4444',
+    transform: [{ rotate: '10deg' }],
+  },
+  superlikeOverlay: {
+    top: 32,
+    alignSelf: 'center',
+    borderColor: '#3b82f6',
+    transform: [{ rotate: '0deg' }],
   },
   overlayText: {
     fontFamily: 'Inter-Bold',

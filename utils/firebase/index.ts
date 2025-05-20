@@ -13,7 +13,8 @@ export {
   typingIndicatorsRef,
   usersRef,
   disableFirestoreNetwork,
-  enableFirestoreNetwork
+  enableFirestoreNetwork,
+  refreshFirestoreConnection
 } from './config';
 
 // Auth exports

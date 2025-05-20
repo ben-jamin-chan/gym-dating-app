@@ -143,3 +143,44 @@ const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
    -> Requires Apple Developer Account, $99/year
 - To find a way to test the app on the physical device.
 - Refactored the firebase.ts file to be more readable and maintainable. -> To be tested.
+
+== 19 MAY 2025 ==
+FIXME:
+- In the login page, the keyboard is hiding the email and password fields * DONE *
+- Swipe motion in the discover page is not smooth * DONE *
+- What is user in the messages page?
+- Make swipe left "NOPE" to show on the right side of the screen. * DONE *
+
+TODO:
+# Add push notifications to the app. 
+I'm building a dating app with React Native Expo (using Expo Go for development) and Firebase. I need to implement real-time push notifications for the following events:
+1. When a user receives a new match
+2. When a user receives a new message
+3. When someone likes their profile
+
+The notifications should:
+- Appear as native push notifications (even when app is in background)
+- Follow Tinder's style: minimal design with profile picture preview when applicable
+- Include appropriate icons and vibration patterns
+- Deep link to the relevant screen (chat screen for messages, matches screen for matches)
+- Support both iOS and Android
+
+Technical requirements:
+- Use Firebase Cloud Messaging (FCM) with Expo's push notification service
+- Implement notification handling with Expo's Notifications API
+- Store device tokens in Firestore
+- Create cloud functions to trigger notifications on:
+  * Match creation (when both users swipe right)
+  * New message sent
+  * Profile like (if premium feature)
+  
+Please provide:
+1. Complete notification service setup code
+2. Cloud functions for each notification type
+3. Frontend notification handling
+4. Token management
+5. Permission handling
+6. Deep linking configuration
+7. Notification UI components matching Tinder's aesthetic
+
+Include proper error handling and offline support considerations. The solution should work with Expo Go during development and EAS builds in production.

@@ -22,6 +22,7 @@ export default function ChatScreen() {
     fetchMessages,
     setCurrentConversation,
     markMessagesAsRead,
+    cleanupSubscribers,
     error
   } = useChatStore(state => ({
     currentConversation: state.currentConversation,
@@ -29,6 +30,7 @@ export default function ChatScreen() {
     fetchMessages: state.fetchMessages,
     setCurrentConversation: state.setCurrentConversation,
     markMessagesAsRead: state.markMessagesAsRead,
+    cleanupSubscribers: state.cleanupSubscribers,
     error: state.error
   }));
   
@@ -146,10 +148,14 @@ export default function ChatScreen() {
     
     return () => {
       clearInterval(readInterval);
+      // Clean up subscriptions when component unmounts
+      if (conversationId) {
+        cleanupSubscribers(conversationId);
+      }
       // Clean up and set current conversation to null
       setCurrentConversation(null);
     };
-  }, [conversationId, currentConversation, markMessagesAsRead, setCurrentConversation]);
+  }, [conversationId, currentConversation, markMessagesAsRead, setCurrentConversation, cleanupSubscribers]);
   
   // Ensure the current conversation has a valid user object
   const safeConversation = ensureValidConversation(currentConversation);

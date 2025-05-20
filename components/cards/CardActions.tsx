@@ -7,10 +7,13 @@ type CardActionsProps = {
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   onSuperLike: () => void;
+  disabled?: boolean;
 };
 
-export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: CardActionsProps) {
+export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike, disabled = false }: CardActionsProps) {
   const handleSwipeLeft = () => {
+    if (disabled) return;
+    
     console.log("Action button: Swipe Left (Dislike)");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -19,6 +22,8 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
   };
 
   const handleSwipeRight = () => {
+    if (disabled) return;
+    
     console.log("Action button: Swipe Right (Like)");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -27,6 +32,8 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
   };
 
   const handleSuperLike = () => {
+    if (disabled) return;
+    
     console.log("Action button: Super Like");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -37,27 +44,30 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike }: 
   return (
     <View style={styles.container}>
       <TouchableOpacity 
-        style={[styles.button, styles.nopeButton]}
+        style={[styles.button, styles.nopeButton, disabled && styles.disabledButton]}
         onPress={handleSwipeLeft}
-        activeOpacity={0.7}
+        activeOpacity={disabled ? 0.9 : 0.7}
+        disabled={disabled}
       >
-        <X size={30} color="#F87171" />
+        <X size={30} color={disabled ? "#CCCCCC" : "#F87171"} />
       </TouchableOpacity>
       
       <TouchableOpacity 
-        style={[styles.button, styles.superlikeButton]}
+        style={[styles.button, styles.superlikeButton, disabled && styles.disabledButton]}
         onPress={handleSuperLike}
-        activeOpacity={0.7}
+        activeOpacity={disabled ? 0.9 : 0.7}
+        disabled={disabled}
       >
-        <Star size={30} color="#60A5FA" />
+        <Star size={30} color={disabled ? "#CCCCCC" : "#60A5FA"} />
       </TouchableOpacity>
       
       <TouchableOpacity 
-        style={[styles.button, styles.likeButton]}
+        style={[styles.button, styles.likeButton, disabled && styles.disabledButton]}
         onPress={handleSwipeRight}
-        activeOpacity={0.7}
+        activeOpacity={disabled ? 0.9 : 0.7}
+        disabled={disabled}
       >
-        <Heart size={30} color="#FF5864" />
+        <Heart size={30} color={disabled ? "#CCCCCC" : "#FF5864"} />
       </TouchableOpacity>
     </View>
   );
@@ -97,6 +107,10 @@ const styles = StyleSheet.create({
         elevation: 6,
       }
     }),
+  },
+  disabledButton: {
+    opacity: 0.5,
+    borderColor: '#CCCCCC',
   },
   nopeButton: {
     borderWidth: 2,

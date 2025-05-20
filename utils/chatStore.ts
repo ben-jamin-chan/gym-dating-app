@@ -39,6 +39,7 @@ export interface ChatState {
   updateTypingStatus: (conversationId: string, userId: string, isTyping: boolean) => void;
   updateNetworkStatus: (status: NetworkStatus) => void;
   uploadAndSendMediaMessage: (uri: string, conversationId: string, sender: string, type: 'image' | 'gif') => Promise<void>;
+  cleanupSubscribers: (conversationId?: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -59,6 +60,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Actions
   fetchConversations: (userId: string) => {
     set({ isLoadingConversations: true, error: null });
+    
+    // First, clean up any existing conversation subscribers to prevent duplicate listeners
+    const currentUnsubscribers = get()._unsubscribers || {};
+    if (currentUnsubscribers.conversations) {
+      currentUnsubscribers.conversations();
+      
+      // Update the unsubscribers state without the one we just called
+      const { conversations, ...restUnsubscribers } = currentUnsubscribers;
+      set({ _unsubscribers: restUnsubscribers });
+    }
     
     // Load cached conversations first
     AsyncStorage.getItem('conversations')
@@ -127,10 +138,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
       
       // Store unsubscribe function
-      const currentUnsubscribers = get()._unsubscribers || {};
+      const updatedUnsubscribers = get()._unsubscribers || {};
       set({ 
         _unsubscribers: { 
-          ...currentUnsubscribers, 
+          ...updatedUnsubscribers, 
           conversations: unsubscribe 
         } 
       });
@@ -149,6 +160,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   fetchMessages: (conversationId: string) => {
     set({ isLoadingMessages: true, error: null });
+    
+    // Clean up any existing message and typing subscribers for this conversation
+    const currentUnsubscribers = get()._unsubscribers || {};
+    if (currentUnsubscribers[`messages_${conversationId}`]) {
+      currentUnsubscribers[`messages_${conversationId}`]();
+    }
+    if (currentUnsubscribers[`typing_${conversationId}`]) {
+      currentUnsubscribers[`typing_${conversationId}`]();
+    }
+    
+    // Create a new unsubscribers object without the ones we just cleaned up
+    const newUnsubscribers = { ...currentUnsubscribers };
+    delete newUnsubscribers[`messages_${conversationId}`];
+    delete newUnsubscribers[`typing_${conversationId}`];
+    set({ _unsubscribers: newUnsubscribers });
     
     // Load cached messages first
     AsyncStorage.getItem(`messages_${conversationId}`)
@@ -194,10 +220,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       
       // Store unsubscribe functions
-      const currentUnsubscribers = get()._unsubscribers || {};
+      const updatedUnsubscribers = get()._unsubscribers || {};
       set({ 
         _unsubscribers: { 
-          ...currentUnsubscribers, 
+          ...updatedUnsubscribers, 
           [`messages_${conversationId}`]: unsubscribe,
           [`typing_${conversationId}`]: typingUnsubscribe
         } 
@@ -225,6 +251,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
         .catch(err => console.error('Error loading cached messages after Firebase error:', err));
     }
+  },
+  
+  // Add a cleanup function to properly unsubscribe from all Firebase listeners
+  cleanupSubscribers: (conversationId?: string) => {
+    const currentUnsubscribers = get()._unsubscribers || {};
+    const newUnsubscribers = { ...currentUnsubscribers };
+    
+    if (conversationId) {
+      // Clean up only listeners for a specific conversation
+      if (newUnsubscribers[`messages_${conversationId}`]) {
+        newUnsubscribers[`messages_${conversationId}`]();
+        delete newUnsubscribers[`messages_${conversationId}`];
+      }
+      
+      if (newUnsubscribers[`typing_${conversationId}`]) {
+        newUnsubscribers[`typing_${conversationId}`]();
+        delete newUnsubscribers[`typing_${conversationId}`];
+      }
+    } else {
+      // Clean up all listeners
+      Object.entries(newUnsubscribers).forEach(([key, unsubscribe]) => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+      
+      // Reset the unsubscribers object
+      set({ _unsubscribers: {} });
+      return;
+    }
+    
+    // Update the unsubscribers state
+    set({ _unsubscribers: newUnsubscribers });
   },
   
   setCurrentConversation: (conversation: Conversation | null) => {

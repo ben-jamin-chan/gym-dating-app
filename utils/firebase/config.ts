@@ -8,7 +8,8 @@ import {
   enableIndexedDbPersistence,
   connectFirestoreEmulator,
   disableNetwork,
-  enableNetwork
+  enableNetwork,
+  Firestore
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { 
@@ -83,4 +84,26 @@ export const usersRef = collection(db, 'users');
 
 // Network operations
 export const disableFirestoreNetwork = () => disableNetwork(db);
-export const enableFirestoreNetwork = () => enableNetwork(db); 
+export const enableFirestoreNetwork = () => enableNetwork(db);
+
+// This function can be used to refresh the Firestore connection
+// It's particularly useful when encountering "Target ID already exists" errors
+export const refreshFirestoreConnection = async () => {
+  try {
+    console.log('Refreshing Firestore connection...');
+    // First disable the network
+    await disableNetwork(db);
+    console.log('Network disabled');
+    
+    // Short delay to ensure all operations have settled
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Then re-enable it
+    await enableNetwork(db);
+    console.log('Network re-enabled, Firestore connection refreshed');
+    return true;
+  } catch (error) {
+    console.error('Error refreshing Firestore connection:', error);
+    return false;
+  }
+}; 

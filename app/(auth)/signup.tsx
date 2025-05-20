@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Image, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, StyleSheet, Image, Text, TouchableOpacity, Platform, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +10,11 @@ export default function SignupScreen() {
   const router = useRouter();
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
       <StatusBar style="light" />
       <Image 
         source={{ uri: "https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg" }} 
@@ -21,23 +25,29 @@ export default function SignupScreen() {
         style={styles.gradient}
       />
       <SafeAreaView edges={['bottom']} style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Create Account</Text>
-          <Text style={styles.tagline}>Join the fitness community</Text>
-        </View>
-        
-        <View style={styles.formContainer}>
-          <SignupForm />
-          
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/login')}>
-              <Text style={styles.loginText}>Log In</Text>
-            </TouchableOpacity>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>Create Account</Text>
+            <Text style={styles.tagline}>Join the fitness community</Text>
           </View>
-        </View>
+          
+          <View style={styles.formContainer}>
+            <SignupForm />
+            
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/login')}>
+                <Text style={styles.loginText}>Log In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
       </SafeAreaView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -61,12 +71,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'space-between',
     padding: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    paddingBottom: 20,
   },
   logoContainer: {
     alignItems: 'center',
     marginTop: Platform.OS === 'web' ? 40 : 60,
+    marginBottom: 20,
   },
   logoText: {
     fontFamily: 'Inter-Bold',
@@ -89,6 +104,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
+    marginTop: 'auto',
   },
   footer: {
     flexDirection: 'row',

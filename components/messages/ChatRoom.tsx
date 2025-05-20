@@ -94,7 +94,8 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     sendMessage,
     updateTypingStatus,
     uploadAndSendMediaMessage,
-    networkStatus
+    networkStatus,
+    cleanupSubscribers
   } = useChatStore(state => ({
     messages: state.messages[conversationId] || [],
     typingUsers: state.typingUsers[conversationId] || [],
@@ -103,7 +104,8 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     sendMessage: state.sendMessage,
     updateTypingStatus: state.updateTypingStatus,
     uploadAndSendMediaMessage: state.uploadAndSendMediaMessage,
-    networkStatus: state.networkStatus
+    networkStatus: state.networkStatus,
+    cleanupSubscribers: state.cleanupSubscribers
   }));
 
   // Override console.error to detect index errors
@@ -130,6 +132,19 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
       console.error = originalConsoleError;
     };
   }, []);
+
+  // Clean up Firebase subscriptions when component unmounts
+  useEffect(() => {
+    return () => {
+      // Clear any typing timeouts
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Explicitly set typing status to false when leaving
+      updateTypingStatus(conversationId, 'current-user', false);
+    };
+  }, [conversationId, updateTypingStatus]);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {

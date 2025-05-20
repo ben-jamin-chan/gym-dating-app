@@ -12,17 +12,24 @@ export default function MessagesScreen() {
   const { 
     conversations, 
     isLoadingConversations, 
-    fetchConversations 
+    fetchConversations,
+    cleanupSubscribers
   } = useChatStore((state: ChatState) => ({
     conversations: state.conversations,
     isLoadingConversations: state.isLoadingConversations,
-    fetchConversations: state.fetchConversations
+    fetchConversations: state.fetchConversations,
+    cleanupSubscribers: state.cleanupSubscribers
   }));
 
   useEffect(() => {
     // In a real app, this would use the actual current user ID
     fetchConversations('current-user');
-  }, [fetchConversations]);
+    
+    // Clean up the conversation subscription when component unmounts
+    return () => {
+      cleanupSubscribers();
+    };
+  }, [fetchConversations, cleanupSubscribers]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
