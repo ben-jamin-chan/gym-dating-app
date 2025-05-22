@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "gym-dating-app": {
+      "storage": {
+        "rules": [
+          "gym-dating-app.appspot.com"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

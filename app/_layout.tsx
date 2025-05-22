@@ -48,16 +48,40 @@ export default function RootLayout() {
     scheduleSystemDocumentSetup();
     
     // Refresh Firestore connection at startup to fix "Target ID already exists" errors
-    if (!hasResetFirestoreConnection.current) {
-      refreshFirestoreConnection()
-        .then(success => {
-          console.log('Firestore connection reset at startup:', success ? 'successful' : 'failed');
+    // Use a more robust retry mechanism to ensure the connection is properly reset
+    const resetFirestoreConnection = async (retryCount = 0, maxRetries = 3) => {
+      if (hasResetFirestoreConnection.current) return;
+      
+      try {
+        const success = await refreshFirestoreConnection();
+        console.log('Firestore connection reset at startup:', success ? 'successful' : 'failed');
+        
+        if (!success && retryCount < maxRetries) {
+          // Wait with exponential backoff before retrying
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+          console.log(`Retrying Firestore connection reset in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          
+          setTimeout(() => resetFirestoreConnection(retryCount + 1, maxRetries), delay);
+        } else {
           hasResetFirestoreConnection.current = true;
-        })
-        .catch(error => {
-          console.error('Error resetting Firestore connection:', error);
-        });
-    }
+        }
+      } catch (error) {
+        console.error('Error resetting Firestore connection:', error);
+        
+        if (retryCount < maxRetries) {
+          // Wait with exponential backoff before retrying
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+          console.log(`Retrying Firestore connection reset in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          
+          setTimeout(() => resetFirestoreConnection(retryCount + 1, maxRetries), delay);
+        } else {
+          hasResetFirestoreConnection.current = true;
+        }
+      }
+    };
+    
+    // Start the reset process
+    resetFirestoreConnection();
     
     // Cleanup on unmount
     return () => {

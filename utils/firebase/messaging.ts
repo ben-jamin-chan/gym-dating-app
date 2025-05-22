@@ -169,10 +169,11 @@ export const sendMessage = async (conversationId: string, message: Omit<Message,
 
 export const markMessagesAsRead = async (conversationId: string, userId: string) => {
   try {
+    // Instead of using a compound query with != and ==, which requires a specific index,
+    // we'll first get all unread messages, then filter them client-side
     const q = query(
       collection(db, `conversations/${conversationId}/messages`),
-      where('read', '==', false),
-      where('sender', '!=', userId)
+      where('read', '==', false)
     );
     
     let querySnapshot;
@@ -185,23 +186,23 @@ export const markMessagesAsRead = async (conversationId: string, userId: string)
         return; // Exit early, the offline handling in chatStore will take care of UI updates
       }
       
-      // Handle missing index error more gracefully
-      if (error.message && error.message.includes('requires an index')) {
-        console.error('Missing Firebase index for markMessagesAsRead. Please create the required index in Firebase console.');
-        console.error('You need to create a composite index on conversations/{conversationId}/messages with fields:');
-        console.error('- sender != (Ascending)');
-        console.error('- read == (Ascending)');
-        
-        // Return without throwing to avoid app crash
-        return;
-      }
-      
-      throw error; // Re-throw other errors
+      // Re-throw other errors
+      throw error;
+    }
+    
+    // Filter messages client-side to only include those not sent by the current user
+    const messagesToUpdate = querySnapshot.docs.filter(doc => {
+      const data = doc.data();
+      return data.sender !== userId;
+    });
+    
+    if (messagesToUpdate.length === 0) {
+      return; // No messages to update
     }
     
     const batch = writeBatch(db);
     
-    querySnapshot.docs.forEach(document => {
+    messagesToUpdate.forEach(document => {
       const messageRef = doc(db, `conversations/${conversationId}/messages`, document.id);
       batch.update(messageRef, {
         read: true,

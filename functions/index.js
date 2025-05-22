@@ -9,7 +9,7 @@ const messaging = admin.messaging();
  * Cloud function that's triggered when a new match is created
  * This sends push notifications to both users
  */
-exports.notifyMatch = functions.https.onCall(async (data, context) => {
+exports.notifyMatch = functions.region('asia-southeast1').https.onCall(async (data, context) => {
   // Ensure the user is authenticated
   if (!context.auth) {
     throw new functions.https.HttpsError(
@@ -108,7 +108,7 @@ exports.notifyMatch = functions.https.onCall(async (data, context) => {
  * Triggered when a new match document is created
  * This updates user statistics and other related data
  */
-exports.onMatchCreated = functions.firestore
+exports.onMatchCreated = functions.region('asia-southeast1').firestore
   .document('matches/{matchId}')
   .onCreate(async (snapshot, context) => {
     const matchData = snapshot.data();
@@ -152,7 +152,7 @@ exports.onMatchCreated = functions.firestore
  * Triggered when a user swipes right (likes) another user
  * This calculates recommendation updates based on user preferences
  */
-exports.onSwipeAction = functions.firestore
+exports.onSwipeAction = functions.region('asia-southeast1').firestore
   .document('swipes/{swipeId}')
   .onCreate(async (snapshot, context) => {
     const swipeData = snapshot.data();
@@ -227,7 +227,7 @@ exports.onSwipeAction = functions.firestore
  * Creates a database index for the swipes collection
  * This is run periodically to ensure indexes are maintained
  */
-exports.createSwipeIndexes = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
+exports.createSwipeIndexes = functions.region('asia-southeast1').pubsub.schedule('every 24 hours').onRun(async (context) => {
   try {
     // This function doesn't actually create the indexes - they need to be defined in the Firebase console
     // or via the Firebase CLI. This is just a reminder function that logs information about indexes.

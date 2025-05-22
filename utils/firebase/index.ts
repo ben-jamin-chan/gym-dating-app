@@ -64,5 +64,6 @@ export {
   refreshFirebaseConnection,
   storeUserCredentials,
   clearUserCredentials,
-  checkAndAutoSignIn
+  checkAndAutoSignIn,
+  cleanupFirestoreListeners
 } from './utils'; 

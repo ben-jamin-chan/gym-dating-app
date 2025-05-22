@@ -9,7 +9,9 @@ import {
   connectFirestoreEmulator,
   disableNetwork,
   enableNetwork,
-  Firestore
+  Firestore,
+  doc,
+  getDoc
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { 
@@ -95,12 +97,27 @@ export const refreshFirestoreConnection = async () => {
     await disableNetwork(db);
     console.log('Network disabled');
     
-    // Short delay to ensure all operations have settled
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Longer delay to ensure all operations have completely settled
+    // This is important for resolving "Target ID already exists" errors
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
     // Then re-enable it
     await enableNetwork(db);
     console.log('Network re-enabled, Firestore connection refreshed');
+    
+    // Wait a moment for connection to be fully established
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Attempt a test read to validate the connection
+    try {
+      const testRef = doc(db, 'system', 'status');
+      await getDoc(testRef);
+      console.log('Connection successfully verified with test read');
+    } catch (testError) {
+      // Log but don't fail the overall process if the test read fails
+      console.warn('Firebase connection test read failed, but continuing:', testError);
+    }
+    
     return true;
   } catch (error) {
     console.error('Error refreshing Firestore connection:', error);

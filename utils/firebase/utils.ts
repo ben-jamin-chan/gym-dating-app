@@ -162,4 +162,20 @@ export const checkAndAutoSignIn = async () => {
   } catch (error) {
     console.error('Error checking stored credentials:', error);
   }
+};
+
+// Helper function to safely unsubscribe from multiple Firestore listeners
+export const cleanupFirestoreListeners = (listeners: {[key: string]: (() => void) | undefined}) => {
+  // Iterate through all listeners and unsubscribe
+  Object.entries(listeners).forEach(([key, unsubscribe]) => {
+    if (typeof unsubscribe === 'function') {
+      try {
+        unsubscribe();
+        console.log(`Unsubscribed from Firestore listener: ${key}`);
+      } catch (error) {
+        console.warn(`Error unsubscribing from Firestore listener ${key}:`, error);
+        // Continue with other unsubscribes even if one fails
+      }
+    }
+  });
 }; 

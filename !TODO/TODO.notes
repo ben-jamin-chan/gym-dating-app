@@ -139,16 +139,15 @@ const frequencyOptions = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally'];
    = Small refactors -> 3.7 sonnet 
 
 == 18 MAY 2025 ==
-- To add app to TestFlight for testing. (?) 
-   -> Requires Apple Developer Account, $99/year
-- To find a way to test the app on the physical device.
-- Refactored the firebase.ts file to be more readable and maintainable. -> To be tested.
+- To add app to TestFlight for testing. (?) -> requires Apple Developer Account, $99/year
+- To find a way to test the app on the physical device. -> npx expo start -> scan the QR code with the Expo Go app on the physical device.
+- Refactored the firebase.ts file to be more readable and maintainable. * DONE *
 
 == 19 MAY 2025 ==
 FIXME:
 - In the login page, the keyboard is hiding the email and password fields * DONE *
 - Swipe motion in the discover page is not smooth * DONE *
-- What is user in the messages page?
+- What is user in the messages page? -> * Mock profile *
 - Make swipe left "NOPE" to show on the right side of the screen. * DONE *
 
 TODO:
@@ -184,3 +183,6 @@ Please provide:
 7. Notification UI components matching Tinder's aesthetic
 
 Include proper error handling and offline support considerations. The solution should work with Expo Go during development and EAS builds in production.
+
+== 22 MAY 2025 ==
+- Based on the dating app we have created with react native expo and firebase, is there anything we will need to create and update in my firebase console for all the features to work? such as the user matching system, real-time chat, and etc. similarly to Tinder
