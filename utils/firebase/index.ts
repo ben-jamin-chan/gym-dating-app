@@ -25,7 +25,8 @@ export {
   resetPassword,
   updateUserProfile,
   getCurrentUser,
-  subscribeToAuthChanges
+  subscribeToAuthChanges,
+  updateUserLocation
 } from './auth';
 
 // Database exports

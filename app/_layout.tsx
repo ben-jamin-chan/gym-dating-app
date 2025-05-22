@@ -13,6 +13,7 @@ import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
 import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { refreshFirestoreConnection } from '@/utils/firebase';
+import LocationTracker from '@/components/LocationTracker';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -182,24 +183,25 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="chat/[id]" options={{ headerShown: false, presentation: 'modal' }} />
-          <Stack.Screen 
-            name="user-profile" 
-            options={{ 
-              headerShown: false, 
-              presentation: 'card',
-              animation: 'slide_from_right',
-              animationDuration: 200
-            }} 
-          />
-          <Stack.Screen name="seed-profiles" options={{ headerShown: true, presentation: 'modal' }} />
-          <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-        </Stack>
-        <NetworkMonitor />
-        <StatusBar style="auto" />
+          <LocationTracker />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="chat/[id]" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen 
+              name="user-profile" 
+              options={{ 
+                headerShown: false, 
+                presentation: 'card',
+                animation: 'slide_from_right',
+                animationDuration: 200
+              }} 
+            />
+            <Stack.Screen name="seed-profiles" options={{ headerShown: true, presentation: 'modal' }} />
+            <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+          </Stack>
+          <NetworkMonitor />
+          <StatusBar style="auto" />
         </AuthProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

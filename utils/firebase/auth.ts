@@ -7,10 +7,12 @@ import {
   updateProfile,
   User
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import { auth, db } from './config';
 import { checkNetworkBeforeOperation, logFirebaseError, storeUserCredentials, clearUserCredentials } from './utils';
+import { GeoPoint } from 'firebase/firestore';
+import { geoFirestore } from './config';
 
 // Helper function to save user profile (internal to this module to avoid circular deps)
 const saveUserProfileInternal = async (userId: string, profileData: any) => {
@@ -173,4 +175,53 @@ export const getCurrentUser = (): User | null => {
 
 export const subscribeToAuthChanges = (callback: (user: User | null) => void) => {
   return onAuthStateChanged(auth, callback);
+};
+
+export const updateUserLocation = async (userId: string, latitude: number, longitude: number) => {
+  try {
+    if (!userId) {
+      console.error('Invalid user ID provided to updateUserLocation');
+      throw new Error('Invalid user ID');
+    }
+    
+    console.log(`Updating location for user: ${userId} to [${latitude}, ${longitude}]`);
+    
+    // Access the users collection
+    const userDocRef = doc(db, 'users', userId);
+    
+    // First check if document exists
+    const userDoc = await getDoc(userDocRef);
+    
+    if (!userDoc.exists()) {
+      console.log('User document does not exist, creating it...');
+      // Create the user document with location
+      await setDoc(userDocRef, {
+        coordinates: new GeoPoint(latitude, longitude),
+        location: {
+          latitude,
+          longitude
+        },
+        locationUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp()
+      });
+    } else {
+      // Update the existing document
+      await setDoc(userDocRef, {
+        coordinates: new GeoPoint(latitude, longitude),
+        location: {
+          latitude,
+          longitude
+        },
+        locationUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+    
+    console.log('Location successfully updated');
+    return true;
+  } catch (error) {
+    console.error('Error updating user location:', error);
+    throw error;
+  }
 }; 

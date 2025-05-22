@@ -85,7 +85,9 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
           {profile.location && (
             <View style={styles.detailItem}>
               <MapPin size={16} color="#E5E7EB" />
-              <Text style={styles.detailText}>3 miles away</Text>
+              <Text style={styles.detailText}>
+                {profile.distance ? `${profile.distance} km away` : 'Distance unavailable'}
+              </Text>
             </View>
           )}
           

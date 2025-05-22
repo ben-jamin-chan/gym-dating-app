@@ -78,7 +78,7 @@ export type Conversation = {
     name: string;
     photo: string;
     online: boolean;
-    distance?: number; // Distance in miles
+    distance?: number; // Distance in kilometers
   };
   lastMessage: {
     text: string;

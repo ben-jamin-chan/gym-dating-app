@@ -64,6 +64,32 @@
         { "fieldPath": "conversationId", "order": "ASCENDING" },
         { "fieldPath": "userId", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "g", "order": "ASCENDING" },
+        { "fieldPath": "l", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gender", "order": "ASCENDING" },
+        { "fieldPath": "g", "order": "ASCENDING" },
+        { "fieldPath": "l", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "workoutFrequency", "order": "ASCENDING" },
+        { "fieldPath": "g", "order": "ASCENDING" },
+        { "fieldPath": "l", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

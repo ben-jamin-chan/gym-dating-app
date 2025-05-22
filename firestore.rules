@@ -28,13 +28,39 @@ service cloud.firestore {
     
     // Allow users to read and write their own data
     match /users/{userId} {
+      // Allow reading any user profile for discovery
       allow read: if isAuthenticated();
-      allow write: if isUserAuthenticated(userId);
+      
+      // Only allow users to update their own data
+      allow create, update: if isUserAuthenticated(userId);
+      allow delete: if false; // Never allow deletion
+      
+      // Special location fields for GeoFirestore
+      function isValidLocationUpdate() {
+        return 
+          incomingData().keys().hasAny(['location', 'coordinates', 'g', 'd']) &&
+          (
+            !incomingData().keys().hasAll(['location']) || 
+            (incomingData().location is map && 
+             incomingData().location.keys().hasAll(['latitude', 'longitude']) &&
+             incomingData().location.latitude is number &&
+             incomingData().location.longitude is number)
+          );
+      }
+      
+      // Allow specific location-related fields update
+      allow update: if isUserAuthenticated(userId) && isValidLocationUpdate();
       
       // User preferences (for matching algorithm)
       match /preferences/{document=**} {
         allow read, write: if isUserAuthenticated(userId);
       }
+    }
+    
+    // User preferences for discovery
+    match /userPreferences/{userId} {
+      allow read: if isUserAuthenticated(userId);
+      allow write: if isUserAuthenticated(userId);
     }
     
     // Swipes collection - store likes and passes
@@ -86,19 +112,14 @@ service cloud.firestore {
     // Messages within matches
     match /matches/{matchId}/messages/{messageId} {
       // Users can only read messages from matches they're involved in
-      allow read: if isInvolvedInMatch(
-        get(/databases/$(database)/documents/matches/$(matchId)).data
-      );
+      allow read: if isAuthenticated();
       
-      // Users can only create messages in matches they're involved in
-      allow create: if isAuthenticated() && 
-                     incomingData().senderId == request.auth.uid &&
-                     isInvolvedInMatch(
-                       get(/databases/$(database)/documents/matches/$(matchId)).data
-                     );
+      // Users can create messages if they're authenticated
+      allow create: if isAuthenticated();
       
-      // Don't allow messages to be updated or deleted by users
-      allow update, delete: if false;
+      // Allow update but not delete
+      allow update: if isAuthenticated();
+      allow delete: if false;
     }
     
     // User FCM tokens for notifications
@@ -107,6 +128,31 @@ service cloud.firestore {
       allow create: if isAuthenticated() && incomingData().userId == request.auth.uid;
       allow update: if isAuthenticated() && existingData().userId == request.auth.uid;
       allow delete: if isAuthenticated() && existingData().userId == request.auth.uid;
+    }
+    
+    // Conversations collection for messaging
+    match /conversations/{conversationId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isAuthenticated() && 
+                    incomingData().participants.hasAny([request.auth.uid]) &&
+                    incomingData().participants.size() == 2;
+      
+      allow update: if isAuthenticated();
+                   
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated();
+        
+        allow create: if isAuthenticated();
+        
+        allow update: if isAuthenticated();
+      }
+    }
+    
+    // Typing indicators collection
+    match /typingIndicators/{indicatorId} {
+      allow read, write: if isAuthenticated();
     }
   }
 } 

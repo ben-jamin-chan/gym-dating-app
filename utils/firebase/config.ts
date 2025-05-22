@@ -21,7 +21,6 @@ import {
   setPersistence
 } from 'firebase/auth';
 import { Platform } from 'react-native';
-import { GeoFirestore } from 'geofirestore';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -38,8 +37,14 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-// Initialize GeoFirestore with the Firestore instance
-export const geoFirestore = new GeoFirestore(db as any);
+// We'll use regular Firestore instead of GeoFirestore for now
+// to avoid compatibility issues
+export const geoFirestore = {
+  collection: (path: string) => {
+    console.log(`GeoFirestore collection requested: ${path}`);
+    return collection(db, path);
+  }
+};
 
 // Initialize Auth
 export const auth = getAuth(app);

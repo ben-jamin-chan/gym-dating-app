@@ -245,13 +245,13 @@ export default function DiscoveryPreferencesScreen() {
             <MapPin size={20} color="#6B7280" />
           </View>
           
-          <Text style={styles.rangeText}>{maxDistance} miles</Text>
+          <Text style={styles.rangeText}>{maxDistance} km</Text>
           
           <View style={styles.sliderContainer}>
             <Slider
               style={[styles.slider, { marginLeft: 0 }]}
               minimumValue={1}
-              maximumValue={100}
+              maximumValue={160}
               step={1}
               value={maxDistance}
               onValueChange={setMaxDistance}
