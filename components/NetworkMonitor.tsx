@@ -5,6 +5,7 @@ import { useChatStore } from '@/utils/chatStore';
 import { usePendingMessages } from '@/utils/usePendingMessages';
 import { useRouter } from 'expo-router';
 import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
+import { processPendingLocationUpdates } from '@/utils/processPendingLocationUpdates';
 
 const { width } = Dimensions.get('window');
 
@@ -36,7 +37,7 @@ export default function NetworkMonitor() {
       // Show banner when offline
       if (!networkStatus.isConnected) {
         setVisible(true);
-        setMessage('No internet connection. Messages will be sent when you\'re back online.');
+        setMessage('No internet connection. The app will continue to work in offline mode.');
         setIsError(true);
         Animated.timing(translateY, {
           toValue: 0,
@@ -49,8 +50,13 @@ export default function NetworkMonitor() {
         // Try to process any pending messages when coming back online
         processPendingMessages();
         
+        // Also process any pending location updates
+        processPendingLocationUpdates().catch(error => {
+          console.warn('Error processing pending location updates:', error);
+        });
+        
         setVisible(true);
-        setMessage('Connected! Syncing messages...');
+        setMessage('Connected! Syncing data...');
         setIsError(false);
         Animated.timing(translateY, {
           toValue: 0,
@@ -89,6 +95,13 @@ export default function NetworkMonitor() {
         
         // Process any pending messages
         await processPendingMessages();
+        
+        // Process any pending location updates
+        try {
+          await processPendingLocationUpdates();
+        } catch (error) {
+          console.warn('Error processing pending location updates after reconnection:', error);
+        }
         
         // Hide after 2 seconds
         setTimeout(() => {
@@ -129,7 +142,7 @@ export default function NetworkMonitor() {
         <Text style={styles.text}>{message}</Text>
         {isError && (
           <Text style={styles.subText}>
-            Firebase is running in offline mode. The app will still work, but changes won't sync until you're back online.
+            The app is running in offline mode. Location tracking and messages will sync when you're back online.
           </Text>
         )}
         {isError && (

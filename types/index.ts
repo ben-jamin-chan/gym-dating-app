@@ -15,7 +15,7 @@ export type UserProfile = {
     longitude: number;
   } | string;
   gender?: string;
-  distance?: number;
+  distance?: number; // Distance in kilometers from current user
   workoutFrequency?: string;
   gymCheckIns?: number;
   preferredWorkouts?: string[];

@@ -13,6 +13,7 @@ import { auth, db } from './config';
 import { checkNetworkBeforeOperation, logFirebaseError, storeUserCredentials, clearUserCredentials } from './utils';
 import { GeoPoint } from 'firebase/firestore';
 import { geoFirestore } from './config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Helper function to save user profile (internal to this module to avoid circular deps)
 const saveUserProfileInternal = async (userId: string, profileData: any) => {
@@ -184,6 +185,47 @@ export const updateUserLocation = async (userId: string, latitude: number, longi
       throw new Error('Invalid user ID');
     }
     
+    // Check if we're online using navigator.onLine (works on web) or NetInfo (for React Native)
+    let isOnline = true;
+    try {
+      if (Platform.OS === 'web') {
+        isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+      } else {
+        const NetInfo = require('@react-native-community/netinfo');
+        const state = await NetInfo.fetch();
+        isOnline = state.isConnected && state.isInternetReachable !== false;
+      }
+    } catch (e) {
+      // If we can't determine connectivity, assume we're online
+      console.log('Error checking network status:', e);
+    }
+
+    // If we're offline, store the location update to process later
+    if (!isOnline) {
+      try {
+        // Store the location update in AsyncStorage for later processing
+        const locationUpdates = await AsyncStorage.getItem('pendingLocationUpdates');
+        const updates = locationUpdates ? JSON.parse(locationUpdates) : [];
+        
+        updates.push({
+          userId,
+          latitude,
+          longitude,
+          timestamp: Date.now()
+        });
+        
+        // Only keep the latest 10 updates to prevent storage bloat
+        const trimmedUpdates = updates.slice(-10);
+        await AsyncStorage.setItem('pendingLocationUpdates', JSON.stringify(trimmedUpdates));
+        
+        console.log('Stored location update for later processing (offline mode)');
+        return false; // Indicate update was queued but not sent
+      } catch (storageError) {
+        console.warn('Failed to store location update for offline processing:', storageError);
+        return false;
+      }
+    }
+    
     console.log(`Updating location for user: ${userId} to [${latitude}, ${longitude}]`);
     
     // Access the users collection
@@ -221,7 +263,39 @@ export const updateUserLocation = async (userId: string, latitude: number, longi
     console.log('Location successfully updated');
     return true;
   } catch (error) {
-    console.error('Error updating user location:', error);
-    throw error;
+    // Check if this is an offline error
+    if (error instanceof Error && 
+        (error.message.includes('offline') || 
+         error.message.includes('network') || 
+         error.message.includes('connection'))) {
+      console.log('Unable to update location: device is offline');
+      
+      // Try to queue for later
+      try {
+        const locationUpdates = await AsyncStorage.getItem('pendingLocationUpdates');
+        const updates = locationUpdates ? JSON.parse(locationUpdates) : [];
+        
+        updates.push({
+          userId,
+          latitude,
+          longitude,
+          timestamp: Date.now()
+        });
+        
+        // Only keep the latest 10 updates
+        const trimmedUpdates = updates.slice(-10);
+        await AsyncStorage.setItem('pendingLocationUpdates', JSON.stringify(trimmedUpdates));
+        
+        console.log('Stored location update for later processing (offline error caught)');
+      } catch (storageError) {
+        console.warn('Failed to store location update after offline error:', storageError);
+      }
+      
+      return false; // Don't throw, just return false to indicate failure
+    }
+    
+    // For non-offline errors, log but don't throw to prevent crashes
+    console.warn('Error updating user location:', error);
+    return false;
   }
 }; 

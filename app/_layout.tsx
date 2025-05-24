@@ -1,5 +1,9 @@
 import '@/utils/uuidPolyfill'; // UUID crypto polyfill - must be imported before any uuid usage
+import { initializeConsoleEnhancer } from '@/utils/consoleEnhancer'; // Enhanced console logging
 import { useEffect, useRef } from 'react';
+
+// Initialize enhanced console logging immediately
+initializeConsoleEnhancer();
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -13,6 +17,7 @@ import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
 import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { refreshFirestoreConnection } from '@/utils/firebase';
+import { testFirebaseConfig } from '@/utils/firebase/test-config';
 import LocationTracker from '@/components/LocationTracker';
 
 // Prevent the splash screen from auto-hiding
@@ -48,41 +53,46 @@ export default function RootLayout() {
     // This will automatically retry if it fails initially due to offline state
     scheduleSystemDocumentSetup();
     
-    // Refresh Firestore connection at startup to fix "Target ID already exists" errors
-    // Use a more robust retry mechanism to ensure the connection is properly reset
-    const resetFirestoreConnection = async (retryCount = 0, maxRetries = 3) => {
+    // Test Firebase configuration first
+    const initializeFirebase = async () => {
       if (hasResetFirestoreConnection.current) return;
       
+      console.log('Testing Firebase configuration...');
+      
       try {
-        const success = await refreshFirestoreConnection();
-        console.log('Firestore connection reset at startup:', success ? 'successful' : 'failed');
+        // Test Firebase config
+        const configTestPassed = await testFirebaseConfig();
         
-        if (!success && retryCount < maxRetries) {
-          // Wait with exponential backoff before retrying
-          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-          console.log(`Retrying Firestore connection reset in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-          
-          setTimeout(() => resetFirestoreConnection(retryCount + 1, maxRetries), delay);
-        } else {
+        if (configTestPassed) {
+          console.log('✅ Firebase configuration test passed');
+          // Reset the connection to prevent "Target ID already exists" errors
+          await refreshFirestoreConnection();
           hasResetFirestoreConnection.current = true;
+          console.log('✅ Initial Firestore connection reset completed successfully');
+        } else {
+          console.warn('⚠️ Firebase configuration test failed, but continuing...');
         }
       } catch (error) {
-        console.error('Error resetting Firestore connection:', error);
+        console.error('❌ Firebase initialization failed:', error);
         
-        if (retryCount < maxRetries) {
-          // Wait with exponential backoff before retrying
-          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-          console.log(`Retrying Firestore connection reset in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-          
-          setTimeout(() => resetFirestoreConnection(retryCount + 1, maxRetries), delay);
-        } else {
-          hasResetFirestoreConnection.current = true;
-        }
+        // Schedule another attempt after a delay
+        setTimeout(() => {
+          console.log('🔄 Retrying Firebase initialization...');
+          refreshFirestoreConnection()
+            .then(() => {
+              hasResetFirestoreConnection.current = true;
+              console.log('✅ Retry Firebase initialization completed');
+            })
+            .catch(retryError => {
+              console.error('❌ Retry Firebase initialization failed:', retryError);
+              hasResetFirestoreConnection.current = true;
+            });
+        }, 5000);
       }
     };
     
-    // Start the reset process
-    resetFirestoreConnection();
+    // Start Firebase initialization
+    initializeFirebase();
     
     // Cleanup on unmount
     return () => {

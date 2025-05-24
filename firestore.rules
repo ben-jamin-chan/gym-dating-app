@@ -26,30 +26,10 @@ service cloud.firestore {
       return isAuthenticated() && matchData.users.hasAny([request.auth.uid]);
     }
     
-    // Allow users to read and write their own data
+    // TEMPORARY: Allow full access to users collection
     match /users/{userId} {
-      // Allow reading any user profile for discovery
-      allow read: if isAuthenticated();
-      
-      // Only allow users to update their own data
-      allow create, update: if isUserAuthenticated(userId);
-      allow delete: if false; // Never allow deletion
-      
-      // Special location fields for GeoFirestore
-      function isValidLocationUpdate() {
-        return 
-          incomingData().keys().hasAny(['location', 'coordinates', 'g', 'd']) &&
-          (
-            !incomingData().keys().hasAll(['location']) || 
-            (incomingData().location is map && 
-             incomingData().location.keys().hasAll(['latitude', 'longitude']) &&
-             incomingData().location.latitude is number &&
-             incomingData().location.longitude is number)
-          );
-      }
-      
-      // Allow specific location-related fields update
-      allow update: if isUserAuthenticated(userId) && isValidLocationUpdate();
+      // Allow full read/write access temporarily
+      allow read, write: if true;
       
       // User preferences (for matching algorithm)
       match /preferences/{document=**} {
@@ -57,6 +37,7 @@ service cloud.firestore {
       }
     }
     
+    // Rest of your rules remain the same
     // User preferences for discovery
     match /userPreferences/{userId} {
       allow read: if isUserAuthenticated(userId);

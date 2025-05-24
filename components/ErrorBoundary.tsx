@@ -35,8 +35,13 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log the error to the console
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Enhanced error logging to ensure visibility in terminal
+    console.error('🔴 ERROR BOUNDARY CAUGHT ERROR:', error.message);
+    console.error('🔴 ERROR STACK:', error.stack);
+    console.error('🔴 COMPONENT STACK:', errorInfo.componentStack);
+    console.error('🔴 FULL ERROR OBJECT:', error);
+    console.error('🔴 FULL ERROR INFO:', errorInfo);
+    
     this.setState({ errorInfo });
     
     // Check if this is a suppressed error
@@ -45,11 +50,13 @@ class ErrorBoundary extends Component<Props, State> {
     );
     
     if (shouldSuppress) {
-      console.log('Suppressing error UI for non-critical error:', error.message);
+      console.log('🟡 Suppressing error UI for non-critical error:', error.message);
       // Reset the error state after a short delay to allow the component to recover
       setTimeout(() => {
         this.setState({ hasError: false, error: null, errorInfo: null });
       }, 1000);
+    } else {
+      console.error('🔴 SHOWING ERROR UI FOR CRITICAL ERROR:', error.message);
     }
   }
   

@@ -292,11 +292,36 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
  */
 export const getPotentialMatchesWithPreferences = async (userId: string): Promise<UserProfile[]> => {
   try {
+    // Import location utilities
+    const { filterByDistance, getCurrentUserLocation, calculateDistance } = await import('../utils/geoUtils');
+    
     // Get the user's preferences
     const preferences = await getUserPreferences(userId);
     
     // Get users the current user has already swiped on
     const swipedUserIds = await getSwipedUsers(userId);
+    
+    // Get current user's location
+    const currentUserDoc = await getDoc(doc(db, 'users', userId));
+    let currentUserLocation = null;
+    
+    if (currentUserDoc.exists()) {
+      const userData = currentUserDoc.data();
+      if (userData.location) {
+        currentUserLocation = userData.location;
+      } else if (userData.coordinates) {
+        // Handle GeoPoint format
+        currentUserLocation = {
+          latitude: userData.coordinates.latitude,
+          longitude: userData.coordinates.longitude
+        };
+      }
+    }
+    
+    // If we can't get user's location from database, try to get current location
+    if (!currentUserLocation) {
+      currentUserLocation = await getCurrentUserLocation();
+    }
     
     // Get all users from the users collection
     const usersRef = collection(db, 'users');
@@ -318,6 +343,18 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
         return;
       }
       
+      // Extract user location from database
+      let userLocation = null;
+      if (userData.location) {
+        userLocation = userData.location;
+      } else if (userData.coordinates) {
+        // Handle GeoPoint format
+        userLocation = {
+          latitude: userData.coordinates.latitude,
+          longitude: userData.coordinates.longitude
+        };
+      }
+      
       // Create a UserProfile object
       const userProfile: UserProfile = {
         id: doc.id,
@@ -328,7 +365,7 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
         interests: userData.interests || [],
         gender: userData.gender || 'Not specified',
         workoutFrequency: userData.workoutFrequency || 'Not specified',
-        location: userData.location || null,
+        location: userLocation,
         gymCheckIns: userData.gymCheckIns || 0,
       };
       
@@ -362,9 +399,36 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
       potentialMatches.push(userProfile);
     });
     
-    console.log(`Found ${potentialMatches.length} potential matches for user ${userId}`);
+    // Apply location-based filtering if we have current user's location and preferences
+    let locationFilteredMatches = potentialMatches;
     
-    return potentialMatches;
+    if (currentUserLocation && preferences && preferences.maxDistance) {
+      // Filter profiles that have location data and are within distance preference
+      const profilesWithLocation = potentialMatches.filter(profile => profile.location);
+      
+      if (profilesWithLocation.length > 0) {
+        // Calculate distance for each profile and filter by max distance
+        locationFilteredMatches = profilesWithLocation
+          .map(profile => ({
+            ...profile,
+            distance: calculateDistance(currentUserLocation, profile.location!)
+          }))
+          .filter(profile => profile.distance <= preferences.maxDistance!)
+          .sort((a, b) => a.distance - b.distance); // Sort by distance (nearest first)
+      }
+      
+      console.log(`Filtered ${potentialMatches.length} profiles to ${locationFilteredMatches.length} within ${preferences.maxDistance}km`);
+    } else {
+      // If no location data available, add default distance to profiles for UI consistency
+      locationFilteredMatches = potentialMatches.map(profile => ({
+        ...profile,
+        distance: undefined // Will show "Distance unavailable" in UI
+      }));
+      
+      console.log(`No location filtering applied. Found ${potentialMatches.length} potential matches for user ${userId}`);
+    }
+    
+    return locationFilteredMatches;
   } catch (error) {
     console.error('Error getting potential matches with preferences:', error);
     throw error;

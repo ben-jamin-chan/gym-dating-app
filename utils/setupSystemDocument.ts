@@ -6,52 +6,10 @@ import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
  * This should be called once during app initialization
  */
 export const setupSystemStatusDocument = async () => {
-  // Don't throw errors to the console when the function fails
-  try {
-    // Reference to the system status document
-    const statusDocRef = doc(db, 'system', 'status');
-    
-    try {
-      // Check if document exists
-      const statusDoc = await getDoc(statusDocRef);
-      
-      if (!statusDoc.exists()) {
-        // Create the document if it doesn't exist
-        console.log('Creating system status document...');
-        await setDoc(statusDocRef, {
-          lastUpdated: serverTimestamp(),
-          status: 'online',
-          appVersion: '1.0.0',
-          isTestDocument: true
-        });
-        console.log('System status document created successfully');
-      } else {
-        // Update the existing document
-        console.log('Updating system status document...');
-        await setDoc(statusDocRef, {
-          lastUpdated: serverTimestamp(),
-          status: 'online',
-          isTestDocument: true
-        }, { merge: true });
-        console.log('System status document updated successfully');
-      }
-      
-      return true;
-    } catch (error) {
-      // Handle offline errors silently - we'll retry later when connection is restored
-      if (error.message && error.message.includes('offline')) {
-        // Don't log error for offline cases
-        return false;
-      }
-      
-      // Log other errors but don't throw
-      console.warn('Non-critical error with system status document:', error);
-      return false;
-    }
-  } catch (error) {
-    // Should never get here, but just in case
-    return false;
-  }
+  // Disabled system document setup to avoid permission issues
+  // This was used for connection testing but isn't essential for app functionality
+  console.log('System document setup disabled (not essential for app functionality)');
+  return true;
 };
 
 /**

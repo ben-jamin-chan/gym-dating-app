@@ -630,10 +630,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   _lastTypingUpdate: {}
 }));
 
-// Network connectivity monitoring
+// Network connectivity monitoring with improved detection
 NetInfo.addEventListener(state => {
+  // Treat null isInternetReachable as potentially connected to reduce false negatives
+  const isConnected = state.isConnected && (state.isInternetReachable !== false);
+  
   useChatStore.getState().updateNetworkStatus({
-    isConnected: state.isConnected || false,
+    isConnected,
     lastConnected: new Date().toISOString()
   });
 });

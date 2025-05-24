@@ -45,6 +45,8 @@ export const subscribeToConversations = (
   callback: (conversations: Conversation[]) => void,
   errorCallback?: (error: any) => void
 ) => {
+  let unsubscribeFunc: (() => void) | null = null;
+
   try {
     const q = query(
       conversationsRef,
@@ -52,27 +54,43 @@ export const subscribeToConversations = (
       orderBy('lastMessageTimestamp', 'desc')
     );
     
-    return onSnapshot(q, (querySnapshot) => {
-      const conversations = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Conversation[];
-      
-      callback(conversations);
-    }, (error) => {
-      console.error('Error subscribing to conversations:', error);
-      if (errorCallback) {
-        errorCallback(error);
+    // Add a small delay before setting up the subscription
+    // This helps prevent "Target ID already exists" errors
+    setTimeout(() => {
+      try {
+        unsubscribeFunc = onSnapshot(q, (querySnapshot) => {
+          const conversations = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Conversation[];
+          
+          callback(conversations);
+        }, (error) => {
+          console.error('Error subscribing to conversations:', error);
+          if (errorCallback) {
+            errorCallback(error);
+          }
+        });
+      } catch (subscriptionError) {
+        console.error('Error setting up conversations subscription:', subscriptionError);
+        if (errorCallback) {
+          errorCallback(subscriptionError);
+        }
       }
-    });
+    }, 1000);
   } catch (error) {
     console.error('Error setting up conversations subscription:', error);
     if (errorCallback) {
       errorCallback(error);
     }
-    // Return a no-op unsubscribe function
-    return () => {};
   }
+
+  // Return a function that will unsubscribe if the subscription was successful
+  return () => {
+    if (unsubscribeFunc) {
+      unsubscribeFunc();
+    }
+  };
 };
 
 // Messages functions
@@ -95,25 +113,46 @@ export const getMessages = async (conversationId: string) => {
 };
 
 export const subscribeToMessages = (conversationId: string, callback: (messages: Message[]) => void) => {
-  const q = query(
-    collection(db, `conversations/${conversationId}/messages`),
-    orderBy('timestamp', 'asc')
-  );
-  
-  return onSnapshot(q, (querySnapshot) => {
-    const messages = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Message[];
+  let unsubscribeFunc: (() => void) | null = null;
+
+  try {
+    const q = query(
+      collection(db, `conversations/${conversationId}/messages`),
+      orderBy('timestamp', 'asc')
+    );
     
-    // Store messages in AsyncStorage for offline access
-    AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages))
-      .catch(err => console.error('Error caching messages:', err));
-    
-    callback(messages);
-  }, (error) => {
-    console.error('Error subscribing to messages:', error);
-  });
+    // Add a small delay before setting up the subscription
+    // This helps prevent "Target ID already exists" errors
+    setTimeout(() => {
+      try {
+        unsubscribeFunc = onSnapshot(q, (querySnapshot) => {
+          const messages = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Message[];
+          
+          // Store messages in AsyncStorage for offline access
+          AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages))
+            .catch(err => console.error('Error caching messages:', err));
+          
+          callback(messages);
+        }, (error) => {
+          console.error('Error subscribing to messages:', error);
+        });
+      } catch (subscriptionError) {
+        console.error('Error setting up messages subscription:', subscriptionError);
+      }
+    }, 1000);
+  } catch (error) {
+    console.error('Error setting up messages subscription:', error);
+  }
+
+  // Return a function that will unsubscribe if the subscription was successful
+  return () => {
+    if (unsubscribeFunc) {
+      unsubscribeFunc();
+    }
+  };
 };
 
 export const sendMessage = async (conversationId: string, message: Omit<Message, 'id'>) => {
@@ -273,6 +312,8 @@ export const subscribeToTypingIndicator = (
   currentUserId: string,
   callback: (typingUsers: string[]) => void
 ) => {
+  let unsubscribeFunc: (() => void) | null = null;
+
   try {
     const q = query(
       typingIndicatorsRef,
@@ -280,48 +321,61 @@ export const subscribeToTypingIndicator = (
       where('userId', '!=', currentUserId)
     );
     
-    return onSnapshot(q, (querySnapshot) => {
-      const now = new Date();
-      const typingUsers: string[] = [];
-      
-      querySnapshot.docs.forEach(doc => {
-        const data = doc.data() as TypingIndicator;
-        
-        // Only consider typing indicators from the last 10 seconds
-        if (data.isTyping) {
-          const typingTimestamp = data.timestamp as unknown as Timestamp;
-          if (typingTimestamp) {
-            const typingDate = typingTimestamp.toDate();
-            const diffInSeconds = (now.getTime() - typingDate.getTime()) / 1000;
+    // Add a small delay before setting up the subscription
+    // This helps prevent "Target ID already exists" errors
+    setTimeout(() => {
+      try {
+        unsubscribeFunc = onSnapshot(q, (querySnapshot) => {
+          const now = new Date();
+          const typingUsers: string[] = [];
+          
+          querySnapshot.docs.forEach(doc => {
+            const data = doc.data() as TypingIndicator;
             
-            if (diffInSeconds < 10) {
-              typingUsers.push(data.userId);
+            // Only consider typing indicators from the last 10 seconds
+            if (data.isTyping) {
+              const typingTimestamp = data.timestamp as unknown as Timestamp;
+              if (typingTimestamp) {
+                const typingDate = typingTimestamp.toDate();
+                const diffInSeconds = (now.getTime() - typingDate.getTime()) / 1000;
+                
+                if (diffInSeconds < 10) {
+                  typingUsers.push(data.userId);
+                }
+              } else {
+                // If timestamp is not available, consider them typing
+                typingUsers.push(data.userId);
+              }
             }
-          } else {
-            // If timestamp is not available, consider them typing
-            typingUsers.push(data.userId);
+          });
+          
+          callback(typingUsers);
+        }, (error) => {
+          console.error('Error subscribing to typing indicators:', error);
+          
+          // Handle missing index error more gracefully
+          if (error.message && error.message.includes('requires an index')) {
+            console.error('Missing Firebase index for typing indicators. Please create the required index in Firebase console.');
+            console.error('You need to create a composite index on typingIndicators with fields:');
+            console.error('- conversationId == (Ascending)');
+            console.error('- userId != (Ascending)');
+            
+            // Call the callback with empty array to avoid UI issues
+            callback([]);
           }
-        }
-      });
-      
-      callback(typingUsers);
-    }, (error) => {
-      console.error('Error subscribing to typing indicators:', error);
-      
-      // Handle missing index error more gracefully
-      if (error.message && error.message.includes('requires an index')) {
-        console.error('Missing Firebase index for typing indicators. Please create the required index in Firebase console.');
-        console.error('You need to create a composite index on typingIndicators with fields:');
-        console.error('- conversationId == (Ascending)');
-        console.error('- userId != (Ascending)');
-        
-        // Call the callback with empty array to avoid UI issues
-        callback([]);
+        });
+      } catch (subscriptionError) {
+        console.error('Error setting up typing indicator subscription:', subscriptionError);
       }
-    });
+    }, 1000);
   } catch (error) {
     console.error('Error setting up typing indicator subscription:', error);
-    // Return a no-op unsubscribe function
-    return () => {};
   }
+  
+  // Return a function that will unsubscribe if the subscription was successful
+  return () => {
+    if (unsubscribeFunc) {
+      unsubscribeFunc();
+    }
+  };
 }; 

@@ -1,13 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import * as Location from 'expo-location';
 import { View, Text } from 'react-native';
 import { useAuthStore } from '@/utils/authStore';
 import { updateUserLocation } from '@/utils/firebase';
+import NetInfo from '@react-native-community/netinfo';
 
 // This component doesn't render anything visible, it just tracks location
 export default function LocationTracker() {
   const { user } = useAuthStore();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
+  const locationUpdateFailures = useRef(0);
+  
+  // Setup network state monitoring
+  useEffect(() => {
+    // Setup network state listener
+    const unsubscribe = NetInfo.addEventListener(state => {
+      setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
+    });
+    
+    // Initial network check
+    NetInfo.fetch().then(state => {
+      setIsOnline(!!state.isConnected && state.isInternetReachable !== false);
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, []);
   
   useEffect(() => {
     // Only track location if user is logged in
@@ -31,30 +51,85 @@ export default function LocationTracker() {
         });
         
         // Update user's location in Firestore
-        await updateUserLocation(
-          user.uid,
-          initialLocation.coords.latitude,
-          initialLocation.coords.longitude
-        );
+        try {
+          const success = await updateUserLocation(
+            user.uid,
+            initialLocation.coords.latitude,
+            initialLocation.coords.longitude
+          );
+          
+          if (!success) {
+            console.log('Initial location update was queued for later (offline)');
+            locationUpdateFailures.current++;
+          } else {
+            // Reset failure counter on success
+            locationUpdateFailures.current = 0;
+          }
+        } catch (error) {
+          console.log('Error updating initial location, will retry later:', error);
+          locationUpdateFailures.current++;
+        }
         
-        // Subscribe to location updates
+        // Subscribe to location updates with reduced frequency if offline
+        const updateInterval = isOnline ? 5 * 60 * 1000 : 15 * 60 * 1000; // 5 minutes if online, 15 if offline
+        
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             distanceInterval: 100, // Update if user moves more than 100 meters
-            timeInterval: 5 * 60 * 1000, // Update every 5 minutes maximum
+            timeInterval: updateInterval,
           },
           async (location) => {
-            // Update user's location in Firestore
-            await updateUserLocation(
-              user.uid,
-              location.coords.latitude,
-              location.coords.longitude
-            );
+            // Update user's location in Firestore, but don't throw if it fails
+            try {
+              const success = await updateUserLocation(
+                user.uid,
+                location.coords.latitude,
+                location.coords.longitude
+              );
+              
+              if (!success) {
+                console.log('Location update was queued for later (offline)');
+                locationUpdateFailures.current++;
+                
+                // If we have too many failures, slow down the updates even more
+                if (locationUpdateFailures.current >= 3 && locationSubscription) {
+                  // Remove the current subscription
+                  locationSubscription.remove();
+                  
+                  // Start a new subscription with reduced frequency
+                  locationSubscription = await Location.watchPositionAsync(
+                    {
+                      accuracy: Location.Accuracy.Balanced,
+                      distanceInterval: 500, // Increase distance threshold to 500 meters
+                      timeInterval: 30 * 60 * 1000, // 30 minutes
+                    },
+                    async (newLocation) => {
+                      // Same handler, but now will run less frequently
+                      try {
+                        await updateUserLocation(
+                          user.uid,
+                          newLocation.coords.latitude,
+                          newLocation.coords.longitude
+                        );
+                      } catch (error) {
+                        // Just log, don't increment failures counter again
+                        console.log('Error updating location with reduced frequency:', error);
+                      }
+                    }
+                  );
+                }
+              } else {
+                // Reset failure counter on success
+                locationUpdateFailures.current = 0;
+              }
+            } catch (error) {
+              console.log('Error updating location, will retry later:', error);
+            }
           }
         );
       } catch (error) {
-        console.error('Error tracking location:', error);
+        console.log('Error tracking location:', error);
         setErrorMsg('Error tracking location');
       }
     };
@@ -67,7 +142,7 @@ export default function LocationTracker() {
         locationSubscription.remove();
       }
     };
-  }, [user?.uid]);
+  }, [user?.uid, isOnline]); // Re-initialize when network state changes
   
   // This component doesn't render anything visible
   return null;

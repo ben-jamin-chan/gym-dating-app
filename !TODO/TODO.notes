@@ -186,3 +186,9 @@ Include proper error handling and offline support considerations. The solution s
 
 == 22 MAY 2025 ==
 - Based on the dating app we have created with react native expo and firebase, is there anything we will need to create and update in my firebase console for all the features to work? such as the user matching system, real-time chat, and etc. similarly to Tinder
+- Updated location based user matching system to be more efficient and scalable (Firebase) * To be tested *
+   -> We have previously implemented the location based discovery for users to browse and swipe each other based on distance, can you please confirm if its working right now? 
+
+== 24 MAY 2025 ==
+- Fixed location based user matching system to be more efficient and scalable (Firebase) 
+- 

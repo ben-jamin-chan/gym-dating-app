@@ -1,6 +1,14 @@
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import NetInfo, { NetInfoState, NetInfoSubscription } from '@react-native-community/netinfo';
-import { processPendingMessages, refreshFirebaseConnection } from './firebase';
+import { processPendingMessages, refreshFirebaseConnection, refreshFirestoreConnection, enableFirestoreNetwork, disableFirestoreNetwork } from './firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { processPendingLocationUpdates } from './processPendingLocationUpdates';
+
+// Constants
+const LAST_RECONNECTION_ATTEMPT_KEY = 'last_reconnection_attempt';
+const RECONNECTION_COUNT_KEY = 'reconnection_count';
+const MAX_QUICK_RECONNECTIONS = 3;
+const RECONNECTION_COOLDOWN = 5 * 60 * 1000; // 5 minutes
 
 class NetworkReconnectionManager {
   private netInfoSubscription: NetInfoSubscription | null = null;
@@ -79,14 +87,33 @@ class NetworkReconnectionManager {
     this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
   }
 
-  handleNetworkChange = (state: NetInfoState) => {
+  handleNetworkChange = async (state: NetInfoState) => {
     if (this.verboseLogging) {
       console.log('Network state changed:', state);
     }
     
-    if (state.isConnected && state.isInternetReachable !== false) {
-      this.attemptReconnection('Network change detected');
-      this.notifyConnectionStateChange(true);
+    // More robust network state check
+    // isInternetReachable can be null on some platforms, so we treat null as potentially connected
+    const isConnected = state.isConnected && (state.isInternetReachable !== false);
+    
+    if (isConnected) {
+      try {
+        // Check if we should attempt automatic reconnection
+        const shouldReconnect = await this.shouldAttemptReconnection();
+        if (shouldReconnect) {
+          console.log('Network is back - attempting automatic Firestore reconnection');
+          await this.attemptReconnection();
+          
+          // Process any pending location updates
+          try {
+            await processPendingLocationUpdates();
+          } catch (error) {
+            console.warn('Error processing pending location updates:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Error in network change handler:', error);
+      }
     } else {
       this.stopReconnectionTimer();
       this.notifyConnectionStateChange(false);
@@ -175,7 +202,10 @@ class NetworkReconnectionManager {
       // Check current network state
       const netInfo = await NetInfo.fetch();
       
-      if (netInfo.isConnected && netInfo.isInternetReachable !== false) {
+      // More robust network check - treat null isInternetReachable as potentially connected
+      const isConnected = netInfo.isConnected && (netInfo.isInternetReachable !== false);
+      
+      if (isConnected) {
         if (!isSilentCheck || this.verboseLogging) {
           console.log('Network is available, refreshing Firebase connection...');
         }
@@ -185,6 +215,13 @@ class NetworkReconnectionManager {
         
         // Process any pending messages
         await processPendingMessages();
+        
+        // Process any pending location updates
+        try {
+          await processPendingLocationUpdates();
+        } catch (error) {
+          console.warn('Error processing pending location updates during reconnection:', error);
+        }
         
         if (!isSilentCheck || this.verboseLogging) {
           console.log('Reconnection successful');
@@ -262,6 +299,150 @@ class NetworkReconnectionManager {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
+    }
+  }
+
+  private async shouldAttemptReconnection(): Promise<boolean> {
+    try {
+      // Get the timestamp of the last reconnection attempt
+      const lastReconnectionStr = await AsyncStorage.getItem(LAST_RECONNECTION_ATTEMPT_KEY);
+      const reconnectionCountStr = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
+      
+      const now = Date.now();
+      const lastReconnection = lastReconnectionStr ? parseInt(lastReconnectionStr) : 0;
+      const reconnectionCount = reconnectionCountStr ? parseInt(reconnectionCountStr) : 0;
+      
+      // If we've attempted reconnection too many times in a short period, enter cooldown
+      if (reconnectionCount >= MAX_QUICK_RECONNECTIONS && 
+          now - lastReconnection < RECONNECTION_COOLDOWN) {
+        console.log('Too many reconnection attempts, in cooldown period');
+        return false;
+      }
+      
+      // If we're in cooldown period, don't attempt reconnection
+      if (now - lastReconnection < 10000) { // 10 second minimum between attempts
+        console.log('Recent reconnection attempt, waiting before trying again');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error checking reconnection status:', error);
+      return true; // Default to allowing reconnection on error
+    }
+  }
+  
+  private async trackReconnectionAttempt() {
+    try {
+      const now = Date.now().toString();
+      await AsyncStorage.setItem(LAST_RECONNECTION_ATTEMPT_KEY, now);
+      
+      // Update reconnection count
+      const reconnectionCountStr = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
+      const reconnectionCount = reconnectionCountStr ? parseInt(reconnectionCountStr) : 0;
+      
+      // If last reconnection was more than cooldown period ago, reset the count
+      const lastReconnectionStr = await AsyncStorage.getItem(LAST_RECONNECTION_ATTEMPT_KEY);
+      const lastReconnection = lastReconnectionStr ? parseInt(lastReconnectionStr) : 0;
+      
+      if (Date.now() - lastReconnection > RECONNECTION_COOLDOWN) {
+        await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, '1');
+      } else {
+        await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, (reconnectionCount + 1).toString());
+      }
+    } catch (error) {
+      console.error('Error tracking reconnection attempt:', error);
+    }
+  }
+  
+  private async attemptReconnection() {
+    if (this.isReconnecting) {
+      console.log('Reconnection already in progress, skipping');
+      return;
+    }
+    
+    this.isReconnecting = true;
+    
+    try {
+      await this.trackReconnectionAttempt();
+      
+      // Completely disconnect and reconnect Firestore
+      await disableFirestoreNetwork();
+      
+      // Add a delay before re-enabling to allow time for cleanup
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Re-enable the network
+      await enableFirestoreNetwork();
+      
+      // Explicitly refresh the connection to clear any target ID issues
+      await refreshFirestoreConnection();
+      
+      console.log('Firestore reconnection completed successfully');
+    } catch (error) {
+      console.error('Error during automatic Firestore reconnection:', error);
+    } finally {
+      this.isReconnecting = false;
+    }
+  }
+
+  // Public method for manual reconnection from UI
+  public async manualReconnect(): Promise<boolean> {
+    if (this.isReconnecting) {
+      console.log('Reconnection already in progress');
+      return false;
+    }
+    
+    this.isReconnecting = true;
+    
+    try {
+      // Check network status first
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected || !netInfo.isInternetReachable) {
+        console.log('No network available for manual reconnection');
+        return false;
+      }
+      
+      console.log('Attempting manual Firestore reconnection');
+      
+      // Reset reconnection count for manual attempt
+      await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, '0');
+      
+      // Complete reconnection cycle
+      await disableFirestoreNetwork();
+      console.log('Network disabled for manual reconnection');
+      
+      // Longer delay for manual reconnection to ensure complete disconnect
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Re-enable network
+      await enableFirestoreNetwork();
+      console.log('Network re-enabled for manual reconnection');
+      
+      // Wait for connection to stabilize
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Refresh the connection
+      const success = await refreshFirestoreConnection();
+      console.log('Manual Firestore reconnection result:', success ? 'success' : 'failed');
+      
+      if (success) {
+        // Process any pending location updates
+        try {
+          await processPendingLocationUpdates();
+        } catch (error) {
+          console.warn('Error processing pending location updates after manual reconnection:', error);
+        }
+        
+        this.notifyConnectionStateChange(true);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error('Error during manual Firestore reconnection:', error);
+      return false;
+    } finally {
+      this.isReconnecting = false;
     }
   }
 }

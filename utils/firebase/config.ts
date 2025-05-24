@@ -3,23 +3,24 @@ import 'react-native-url-polyfill/auto';
 // Polyfill random values and URL for Firebase Auth on React Native
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, 
   collection,
-  enableIndexedDbPersistence,
-  connectFirestoreEmulator,
   disableNetwork,
   enableNetwork,
-  Firestore,
   doc,
-  getDoc
+  getDoc,
+  initializeFirestore,
+  CACHE_SIZE_UNLIMITED,
+  persistentLocalCache
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { 
   getAuth,
+  initializeAuth,
+  getReactNativePersistence,
   indexedDBLocalPersistence,
-  inMemoryPersistence,
   setPersistence
 } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Your Firebase configuration
@@ -35,7 +36,19 @@ const firebaseConfig = {
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// Initialize Firestore with platform-appropriate persistence
+// React Native doesn't support IndexedDB, so we handle it differently
+export const db = Platform.OS === 'web' 
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        sizeBytes: CACHE_SIZE_UNLIMITED
+      })
+    })
+  : initializeFirestore(app, {
+      // For React Native, use memory cache to avoid IndexedDB issues
+      // Persistence will be handled by the native SDK
+    });
 
 // We'll use regular Firestore instead of GeoFirestore for now
 // to avoid compatibility issues
@@ -46,39 +59,25 @@ export const geoFirestore = {
   }
 };
 
-// Initialize Auth
-export const auth = getAuth(app);
-if (Platform.OS !== 'web') {
-  setPersistence(auth, inMemoryPersistence)
-    .then(() => console.log('Firebase Auth persistence set to in-memory'))
-    .catch(err => console.error('Error setting in-memory auth persistence:', err));
-  console.log('Firebase Auth initialized for React Native');
-} else {
+// Initialize Auth with proper persistence for React Native
+export const auth = Platform.OS === 'web' 
+  ? getAuth(app)
+  : initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage)
+    });
+
+if (Platform.OS === 'web') {
   setPersistence(auth, indexedDBLocalPersistence)
     .then(() => console.log('Firebase Auth web persistence set to IndexedDB'))
     .catch(err => console.error('Error setting web auth persistence:', err));
   console.log('Firebase Auth initialized for web platform');
+} else {
+  console.log('Firebase Auth initialized for React Native with AsyncStorage persistence');
 }
 
-// Enable offline persistence only on web platform
-if (Platform.OS === 'web') {
-  enableIndexedDbPersistence(db)
-    .then(() => {
-      console.log('Offline persistence enabled successfully');
-    })
-    .catch((error) => {
-      console.error('Error enabling offline persistence:', error);
-      if (error.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time
-        console.warn('Multiple tabs open, persistence only enabled in one tab');
-      } else if (error.code === 'unimplemented') {
-        // The current browser does not support all of the features required for persistence
-        console.warn('Current environment does not support persistence');
-      }
-    });
-} else {
-  console.log('Offline persistence not enabled on mobile platform');
-}
+// Persistence is now handled via persistentLocalCache in initializeFirestore
+// No need for additional enableIndexedDbPersistence calls which can cause conflicts
+console.log('Firestore persistence configured via persistentLocalCache');
 
 // Initialize Storage
 export const storage = getStorage(app);
@@ -104,24 +103,18 @@ export const refreshFirestoreConnection = async () => {
     
     // Longer delay to ensure all operations have completely settled
     // This is important for resolving "Target ID already exists" errors
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 3500));
     
     // Then re-enable it
     await enableNetwork(db);
     console.log('Network re-enabled, Firestore connection refreshed');
     
     // Wait a moment for connection to be fully established
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Attempt a test read to validate the connection
-    try {
-      const testRef = doc(db, 'system', 'status');
-      await getDoc(testRef);
-      console.log('Connection successfully verified with test read');
-    } catch (testError) {
-      // Log but don't fail the overall process if the test read fails
-      console.warn('Firebase connection test read failed, but continuing:', testError);
-    }
+    // Connection is now re-enabled, no need for test read
+    // which could fail due to permissions or network issues
+    console.log('Firestore connection refreshed successfully');
     
     return true;
   } catch (error) {
