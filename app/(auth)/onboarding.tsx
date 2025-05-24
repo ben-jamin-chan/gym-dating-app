@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -87,16 +87,48 @@ export default function OnboardingScreen() {
         gymCheckIns: 0,
       };
       
-      // Save to Firestore
+      // Sequential operations to prevent Firestore concurrency issues
+      console.log('Saving user profile...');
       await saveUserProfile(user.uid, profileData);
       
-      // Create default discovery preferences
+      // Add a small delay between operations to prevent concurrency issues
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      console.log('Creating default preferences...');
       await createDefaultPreferences(user.uid);
+      
+      // Add another small delay before navigation
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       return true;
     } catch (error) {
       console.error('Error saving profile data:', error);
-      Alert.alert('Error', 'Failed to save your profile. Please try again.');
+      
+      // Check if it's a Firestore internal error and suggest retry
+      if (error instanceof Error && error.message.includes('INTERNAL ASSERTION FAILED')) {
+        Alert.alert(
+          'Connection Issue', 
+          'There was a temporary connection issue. Please try again.',
+          [
+            {
+              text: 'Retry',
+              onPress: () => {
+                // Retry after a delay
+                setTimeout(() => {
+                  saveUserData();
+                }, 1000);
+              }
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to save your profile. Please try again.');
+      }
+      
       return false;
     } finally {
       setIsSubmitting(false);
@@ -108,9 +140,18 @@ export default function OnboardingScreen() {
       setCurrentStep(currentStep + 1);
     } else {
       // Final step - save data and complete onboarding
+      if (!user?.uid) {
+        Alert.alert('Error', 'User session expired. Please log in again.');
+        router.replace('/(auth)/login');
+        return;
+      }
+      
       const success = await saveUserData();
       if (success) {
-        router.replace('/(tabs)');
+        // Add a small delay before navigation to ensure all operations are complete
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 500);
       }
     }
   };
@@ -165,50 +206,61 @@ export default function OnboardingScreen() {
         </Text>
       </View>
       
-      <ScrollView 
-        style={styles.contentScroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <OnboardingStep
-          title={steps[currentStep].title}
-          description={steps[currentStep].description}
-          stepNumber={currentStep + 1}
-          fields={steps[currentStep].fields}
-          values={formValues}
-          onChangeValue={handleValueChange}
-        />
-      </ScrollView>
-      
-      <View style={styles.footer}>
-        {currentStep > 0 && (
-          <TouchableOpacity
-            onPress={handleBack}
-            style={styles.backButton}
+        <ScrollView 
+          style={styles.contentScroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={16}
+        >
+          <OnboardingStep
+            title={steps[currentStep].title}
+            description={steps[currentStep].description}
+            stepNumber={currentStep + 1}
+            fields={steps[currentStep].fields}
+            values={formValues}
+            onChangeValue={handleValueChange}
+          />
+          
+          {/* Add extra padding at bottom to ensure fields are above keyboard */}
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+        
+        <View style={styles.footer}>
+          {currentStep > 0 && (
+            <TouchableOpacity
+              onPress={handleBack}
+              style={styles.backButton}
+              disabled={isSubmitting}
+            >
+              <ChevronLeft size={24} color="#FF5864" />
+              <Text style={styles.backButtonText}>Back</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity 
+            style={[styles.nextButton, isSubmitting && styles.disabledButton]}
+            onPress={handleNext}
             disabled={isSubmitting}
           >
-            <ChevronLeft size={24} color="#FF5864" />
-            <Text style={styles.backButtonText}>Back</Text>
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Text style={styles.nextButtonText}>
+                  {currentStep === steps.length - 1 ? 'Complete' : 'Next'}
+                </Text>
+                <ChevronRight size={20} color="#FFFFFF" />
+              </>
+            )}
           </TouchableOpacity>
-        )}
-        
-        <TouchableOpacity 
-          style={[styles.nextButton, isSubmitting && styles.disabledButton]}
-          onPress={handleNext}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFFFFF" size="small" />
-          ) : (
-            <>
-              <Text style={styles.nextButtonText}>
-                {currentStep === steps.length - 1 ? 'Complete' : 'Next'}
-              </Text>
-              <ChevronRight size={20} color="#FFFFFF" />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -269,11 +321,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
+  keyboardContainer: {
+    flex: 1,
+  },
   contentScroll: {
     flex: 1,
   },
   content: {
     padding: 20,
+    flexGrow: 1,
+  },
+  bottomSpacer: {
+    height: 80, // Increased height to ensure enough space above footer
   },
   footer: {
     flexDirection: 'row',

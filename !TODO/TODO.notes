@@ -191,4 +191,5 @@ Include proper error handling and offline support considerations. The solution s
 
 == 24 MAY 2025 ==
 - Fixed location based user matching system to be more efficient and scalable (Firebase) 
+- In the onboarding/registration page, the keyboard is hiding all the input fields * DONE *
 - 

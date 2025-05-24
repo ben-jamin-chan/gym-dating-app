@@ -38,6 +38,8 @@ export type UserPreferences = {
   maxDistance: number;
   genderPreference: string[] | 'all';
   workoutFrequencyPreference?: string[];
+  intensityPreference?: string[];
+  preferredTimePreference?: string[];
   interestWeights?: Record<string, number>;
   globalMode?: boolean;
 };

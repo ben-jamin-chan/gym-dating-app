@@ -48,6 +48,8 @@ export const db = Platform.OS === 'web'
   : initializeFirestore(app, {
       // For React Native, use memory cache to avoid IndexedDB issues
       // Persistence will be handled by the native SDK
+      experimentalForceLongPolling: false, // Disable long polling to prevent connection issues
+      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     });
 
 // We'll use regular Firestore instead of GeoFirestore for now

@@ -16,6 +16,12 @@ const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'All'];
 // List of workout frequency options
 const FREQUENCY_OPTIONS = ['Daily', '3-5x/week', '1-2x/week', 'Occasionally', 'All'];
 
+// List of intensity options
+const INTENSITY_OPTIONS = ['Light', 'Moderate', 'Intense', 'Very Intense', 'All'];
+
+// List of preferred time options
+const TIME_OPTIONS = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Flexible', 'All'];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, updateProfile, logout, isLoading, error } = useAuthStore();
@@ -38,6 +44,8 @@ export default function SettingsScreen() {
   const [maxDistance, setMaxDistance] = useState(25);
   const [selectedGenders, setSelectedGenders] = useState<string[]>(['All']);
   const [selectedFrequencies, setSelectedFrequencies] = useState<string[]>(['All']);
+  const [selectedIntensities, setSelectedIntensities] = useState<string[]>(['All']);
+  const [selectedTimes, setSelectedTimes] = useState<string[]>(['All']);
   const [showDiscoveryOptions, setShowDiscoveryOptions] = useState(false);
   
   // Load user preferences
@@ -66,6 +74,16 @@ export default function SettingsScreen() {
           // Handle workout frequency preferences
           if (prefsData.workoutFrequencyPreference) {
             setSelectedFrequencies(prefsData.workoutFrequencyPreference);
+          }
+          
+          // Handle intensity preferences
+          if (prefsData.intensityPreference) {
+            setSelectedIntensities(prefsData.intensityPreference);
+          }
+          
+          // Handle preferred time preferences
+          if (prefsData.preferredTimePreference) {
+            setSelectedTimes(prefsData.preferredTimePreference);
           }
         }
       } catch (error) {
@@ -120,6 +138,50 @@ export default function SettingsScreen() {
     }
   };
   
+  // Toggle intensity selection
+  const toggleIntensity = (intensity: string) => {
+    if (intensity === 'All') {
+      setSelectedIntensities(['All']);
+    } else {
+      // If 'All' is currently selected and user selects a specific intensity
+      if (selectedIntensities.includes('All')) {
+        setSelectedIntensities([intensity]);
+      } else {
+        // Toggle the selected intensity
+        if (selectedIntensities.includes(intensity)) {
+          // Don't allow removing the last selected intensity
+          if (selectedIntensities.length > 1) {
+            setSelectedIntensities(selectedIntensities.filter(i => i !== intensity));
+          }
+        } else {
+          setSelectedIntensities([...selectedIntensities, intensity]);
+        }
+      }
+    }
+  };
+  
+  // Toggle preferred time selection
+  const toggleTime = (time: string) => {
+    if (time === 'All') {
+      setSelectedTimes(['All']);
+    } else {
+      // If 'All' is currently selected and user selects a specific time
+      if (selectedTimes.includes('All')) {
+        setSelectedTimes([time]);
+      } else {
+        // Toggle the selected time
+        if (selectedTimes.includes(time)) {
+          // Don't allow removing the last selected time
+          if (selectedTimes.length > 1) {
+            setSelectedTimes(selectedTimes.filter(t => t !== time));
+          }
+        } else {
+          setSelectedTimes([...selectedTimes, time]);
+        }
+      }
+    }
+  };
+  
   // Save discovery preferences
   const saveDiscoveryPreferences = async () => {
     if (!user?.uid) {
@@ -145,6 +207,12 @@ export default function SettingsScreen() {
         workoutFrequencyPreference: selectedFrequencies.includes('All') 
           ? ['All'] 
           : selectedFrequencies,
+        intensityPreference: selectedIntensities.includes('All')
+          ? ['All']
+          : selectedIntensities,
+        preferredTimePreference: selectedTimes.includes('All')
+          ? ['All']
+          : selectedTimes,
         globalMode: false // Default to false since we're removing this option
       };
       
@@ -318,6 +386,14 @@ export default function SettingsScreen() {
               {renderSettingItem('Workout Frequency', () => {
                 setShowDiscoveryOptions(true);
               }, true)}
+              
+              {renderSettingItem('Workout Intensity', () => {
+                setShowDiscoveryOptions(true);
+              }, true)}
+              
+              {renderSettingItem('Preferred Time', () => {
+                setShowDiscoveryOptions(true);
+              }, true)}
             </>
           ) : (
             <>
@@ -435,6 +511,60 @@ export default function SettingsScreen() {
                         ]}
                       >
                         {frequency}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              {/* Intensity Preferences */}
+              <View style={styles.preferencesSection}>
+                <Text style={styles.preferencesTitle}>Workout Intensity</Text>
+                
+                <View style={styles.optionsContainer}>
+                  {INTENSITY_OPTIONS.map((intensity) => (
+                    <TouchableOpacity
+                      key={intensity}
+                      style={[
+                        styles.optionButton,
+                        selectedIntensities.includes(intensity) && styles.optionButtonSelected
+                      ]}
+                      onPress={() => toggleIntensity(intensity)}
+                    >
+                      <Text 
+                        style={[
+                          styles.optionText,
+                          selectedIntensities.includes(intensity) && styles.optionTextSelected
+                        ]}
+                      >
+                        {intensity}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              {/* Preferred Time Preferences */}
+              <View style={styles.preferencesSection}>
+                <Text style={styles.preferencesTitle}>Preferred Time</Text>
+                
+                <View style={styles.optionsContainer}>
+                  {TIME_OPTIONS.map((time) => (
+                    <TouchableOpacity
+                      key={time}
+                      style={[
+                        styles.optionButton,
+                        selectedTimes.includes(time) && styles.optionButtonSelected
+                      ]}
+                      onPress={() => toggleTime(time)}
+                    >
+                      <Text 
+                        style={[
+                          styles.optionText,
+                          selectedTimes.includes(time) && styles.optionTextSelected
+                        ]}
+                      >
+                        {time}
                       </Text>
                     </TouchableOpacity>
                   ))}

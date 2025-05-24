@@ -100,6 +100,10 @@ export default function OnboardingStep({
                   placeholderTextColor="#9CA3AF"
                   value={values[field] || ''}
                   onChangeText={(text) => onChangeValue(field, text)}
+                  autoCapitalize="words"
+                  autoCorrect={true}
+                  returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
+                  blurOnSubmit={false}
                 />
                 <Text style={styles.fieldHint}>City, neighborhood, or address</Text>
               </View>
@@ -116,6 +120,18 @@ export default function OnboardingStep({
                 placeholderTextColor="#9CA3AF"
                 value={values[field] || ''}
                 onChangeText={(text) => onChangeValue(field, text)}
+                autoCapitalize={field === 'bio' || field === 'interests' || field === 'gym_name' ? 'sentences' : 'none'}
+                autoCorrect={field === 'bio' || field === 'interests' || field === 'gym_name'}
+                returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
+                blurOnSubmit={false}
+                multiline={field === 'bio' || field === 'interests'}
+                numberOfLines={field === 'bio' ? 4 : field === 'interests' ? 2 : 1}
+                textAlignVertical={field === 'bio' || field === 'interests' ? 'top' : 'center'}
+                keyboardType={
+                  field === 'age' || field === 'height' || field === 'weight' 
+                    ? 'numeric' 
+                    : 'default'
+                }
               />
             </View>
           );
@@ -186,6 +202,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
     fontSize: 16,
     color: '#111827',
+    minHeight: 48,
   },
   fieldHint: {
     fontFamily: 'Inter-Regular',

@@ -6,7 +6,9 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 
-export const saveUserProfile = async (userId: string, profileData: any) => {
+export const saveUserProfile = async (userId: string, profileData: any, retryCount = 0) => {
+  const maxRetries = 3;
+  
   try {
     // Create sanitized version of the data to avoid undefined values
     const sanitizedData = Object.fromEntries(
@@ -25,8 +27,20 @@ export const saveUserProfile = async (userId: string, profileData: any) => {
     }, { merge: true });
     
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving user profile:', error);
+    
+    // Check if it's an internal assertion error and we haven't exceeded retry limit
+    if (error.message && error.message.includes('INTERNAL ASSERTION FAILED') && retryCount < maxRetries) {
+      console.log(`Retrying saveUserProfile (attempt ${retryCount + 1}/${maxRetries})`);
+      
+      // Wait a bit before retrying with exponential backoff
+      const delay = Math.pow(2, retryCount) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      return saveUserProfile(userId, profileData, retryCount + 1);
+    }
+    
     throw error;
   }
 };
