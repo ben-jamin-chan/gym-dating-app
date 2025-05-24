@@ -102,6 +102,46 @@ export default function OnboardingStep({
             );
           }
           
+          // Special handling for height field with cm unit
+          if (field === 'height') {
+            return (
+              <View key={index} style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Height (cm)</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Enter your height in centimeters"
+                  placeholderTextColor="#9CA3AF"
+                  value={values[field] || ''}
+                  onChangeText={(text) => onChangeValue(field, text)}
+                  keyboardType="numeric"
+                  returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
+                  blurOnSubmit={false}
+                />
+                <Text style={styles.fieldHint}>e.g., 175 for 175 cm</Text>
+              </View>
+            );
+          }
+          
+          // Special handling for weight field with kg unit
+          if (field === 'weight') {
+            return (
+              <View key={index} style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Weight (kg)</Text>
+                <TextInput
+                  style={styles.fieldInput}
+                  placeholder="Enter your weight in kilograms"
+                  placeholderTextColor="#9CA3AF"
+                  value={values[field] || ''}
+                  onChangeText={(text) => onChangeValue(field, text)}
+                  keyboardType="numeric"
+                  returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
+                  blurOnSubmit={false}
+                />
+                <Text style={styles.fieldHint}>e.g., 70 for 70 kg</Text>
+              </View>
+            );
+          }
+          
           // Special handling for location field to match the gym_name format
           if (field === 'location') {
             return (
