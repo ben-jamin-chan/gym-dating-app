@@ -12,7 +12,15 @@ export default function SignupForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const { register, updateProfile, isLoading, error, clearError } = useAuthStore();
+  const { isLoading, error, clearError, setPendingRegistration, user } = useAuthStore();
+
+  // Redirect if user is already logged in
+  React.useEffect(() => {
+    if (user) {
+      console.log('User already logged in, redirecting to main app');
+      router.replace('/(tabs)');
+    }
+  }, [user, router]);
 
   const handleSignup = async () => {
     if (!name || !email || !password) {
@@ -26,22 +34,17 @@ export default function SignupForm() {
     }
     
     try {
-      console.log('Starting user registration...');
+      console.log('Storing registration data for onboarding...');
       
-      // Register the user
-      const user = await register(email, password);
-      console.log('User registered successfully with ID:', user.uid);
+      // Store the registration data temporarily instead of creating account immediately
+      await setPendingRegistration({ email, password, name });
+      console.log('Registration data stored, navigating to onboarding...');
       
-      // Update profile with display name
-      await updateProfile(name, null);
-      console.log('User profile updated with name:', name);
-      
-      // Navigate to onboarding after successful signup
-      console.log('Navigating to onboarding...');
+      // Navigate to onboarding without creating the account yet
       router.push('/onboarding');
     } catch (err: any) {
-      // Error is already set in the store
-      console.error('Signup error details:', err.message || err);
+      console.error('Error storing registration data:', err.message || err);
+      Alert.alert('Error', 'Failed to proceed with registration. Please try again.');
     }
   };
   
@@ -119,7 +122,6 @@ export default function SignupForm() {
         onPress={handleSignup}
         style={styles.signupButton}
         disabled={isLoading}
-        icon={isLoading ? () => <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
       />
     </View>
   );

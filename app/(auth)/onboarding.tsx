@@ -16,7 +16,16 @@ export default function OnboardingScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { user } = useAuthStore();
+  const { user, pendingRegistration, completePendingRegistration, clearPendingRegistration } = useAuthStore();
+
+  // Check if user should be on this screen
+  React.useEffect(() => {
+    // If there's no pending registration and no user, redirect to signup
+    if (!pendingRegistration && !user) {
+      console.log('No pending registration or user found, redirecting to signup');
+      router.replace('/(auth)/signup');
+    }
+  }, [pendingRegistration, user, router]);
 
   const steps = [
     {
@@ -54,11 +63,31 @@ export default function OnboardingScreen() {
   };
 
   const saveUserData = async () => {
-    if (!user?.uid) {
-      Alert.alert('Error', 'You must be logged in to complete onboarding');
+    // Check if we have a pending registration to complete first
+    if (pendingRegistration && !user) {
+      try {
+        console.log('Completing pending registration...');
+        const newUser = await completePendingRegistration();
+        console.log('Registration completed for user:', newUser.uid);
+        
+        // Continue with saving profile data for the newly created user
+        return await saveProfileData(newUser.uid);
+      } catch (error) {
+        console.error('Error completing registration:', error);
+        Alert.alert('Error', 'Failed to create your account. Please try again.');
+        return false;
+      }
+    } else if (user?.uid) {
+      // User is already registered, just save profile data
+      return await saveProfileData(user.uid);
+    } else {
+      Alert.alert('Error', 'Unable to save profile. Please try logging in again.');
+      router.replace('/(auth)/login');
       return false;
     }
+  };
 
+  const saveProfileData = async (userId: string) => {
     try {
       setIsSubmitting(true);
       
@@ -89,21 +118,21 @@ export default function OnboardingScreen() {
         preferred_time: formValues.preferred_time || '',
         gym_name: formValues.gym_name || '',
         // Additional user data
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        email: user.email,
+        displayName: pendingRegistration?.name || user?.displayName,
+        photoURL: user?.photoURL,
+        email: pendingRegistration?.email || user?.email,
         gymCheckIns: 0,
       };
       
       // Sequential operations to prevent Firestore concurrency issues
       console.log('Saving user profile...');
-      await saveUserProfile(user.uid, profileData);
+      await saveUserProfile(userId, profileData);
       
       // Add a small delay between operations to prevent concurrency issues
       await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log('Creating default preferences...');
-      await createDefaultPreferences(user.uid);
+      await createDefaultPreferences(userId);
       
       // Add another small delay before navigation
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -148,14 +177,11 @@ export default function OnboardingScreen() {
       setCurrentStep(currentStep + 1);
     } else {
       // Final step - save data and complete onboarding
-      if (!user?.uid) {
-        Alert.alert('Error', 'User session expired. Please log in again.');
-        router.replace('/(auth)/login');
-        return;
-      }
-      
       const success = await saveUserData();
       if (success) {
+        // Clear any pending registration data
+        clearPendingRegistration();
+        
         // Add a small delay before navigation to ensure all operations are complete
         setTimeout(() => {
           router.replace('/(tabs)');
@@ -178,6 +204,8 @@ export default function OnboardingScreen() {
       // For other steps, save whatever data was entered and finish onboarding
       const success = await saveUserData();
       if (success) {
+        // Clear any pending registration data
+        clearPendingRegistration();
         router.replace('/(tabs)');
       }
     }

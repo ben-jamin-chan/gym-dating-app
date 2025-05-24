@@ -20,6 +20,7 @@ export {
 // Auth exports
 export {
   registerUser,
+  registerUserWithoutProfile,
   loginUser,
   logoutUser,
   resetPassword,

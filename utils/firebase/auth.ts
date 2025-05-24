@@ -93,6 +93,30 @@ export const registerUser = async (email: string, password: string) => {
   }
 };
 
+export const registerUserWithoutProfile = async (email: string, password: string) => {
+  try {
+    // Try to check network, but don't block registration if check fails
+    try {
+      await checkNetworkBeforeOperation();
+    } catch (error) {
+      console.warn('Network check failed, but continuing with registration attempt:', error);
+    }
+    
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    console.log('User registered successfully (without profile):', userCredential.user.uid);
+    
+    // Store credentials for persistent auth (only on mobile)
+    if (Platform.OS !== 'web') {
+      await storeUserCredentials(email, password);
+    }
+    
+    return userCredential.user;
+  } catch (error: any) {
+    logFirebaseError('Error registering user', error);
+    throw error;
+  }
+};
+
 export const loginUser = async (email: string, password: string) => {
   try {
     // Try to check network, but don't block login if check fails

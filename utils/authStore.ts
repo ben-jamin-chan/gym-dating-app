@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User } from 'firebase/auth';
 import { 
   registerUser as firebaseRegisterUser, 
+  registerUserWithoutProfile as firebaseRegisterUserWithoutProfile,
   loginUser as firebaseLoginUser, 
   logoutUser as firebaseLogoutUser,
   resetPassword as firebaseResetPassword,
@@ -11,11 +12,18 @@ import {
 } from './firebase';
 import { createDefaultPreferences } from '@/services/preferencesService';
 
+interface PendingRegistration {
+  email: string;
+  password: string;
+  name: string;
+}
+
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   error: string | null;
   isInitialized: boolean;
+  pendingRegistration: PendingRegistration | null;
   
   initialize: () => Promise<void>;
   register: (email: string, password: string) => Promise<User>;
@@ -24,6 +32,9 @@ interface AuthState {
   resetPassword: (email: string) => Promise<void>;
   updateProfile: (displayName: string, photoURL?: string) => Promise<User | null>;
   clearError: () => void;
+  setPendingRegistration: (data: PendingRegistration) => Promise<void>;
+  completePendingRegistration: () => Promise<User>;
+  clearPendingRegistration: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -31,6 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   error: null,
   isInitialized: false,
+  pendingRegistration: null,
 
   initialize: async () => {
     console.log('Initializing auth store...');
@@ -87,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log(`Logging in user with email: ${email}`);
       const user = await firebaseLoginUser(email, password);
       console.log(`User logged in successfully with ID: ${user.uid}`);
-      set({ user, isLoading: false });
+      set({ user, isLoading: false, pendingRegistration: null });
       return user;
     } catch (error: any) {
       console.error('Login error:', error.message || error);
@@ -103,7 +115,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('Logging out user...');
       await firebaseLogoutUser();
       console.log('User logged out successfully');
-      set({ user: null, isLoading: false });
+      set({ user: null, isLoading: false, pendingRegistration: null });
     } catch (error: any) {
       console.error('Logout error:', error.message || error);
       set({ error: error.message, isLoading: false });
@@ -139,5 +151,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
   
-  clearError: () => set({ error: null })
+  clearError: () => set({ error: null }),
+
+  setPendingRegistration: async (data: PendingRegistration) => {
+    set({ pendingRegistration: data });
+  },
+
+  completePendingRegistration: async () => {
+    const { pendingRegistration } = get();
+    if (!pendingRegistration) {
+      throw new Error('No pending registration found');
+    }
+
+    set({ isLoading: true, error: null });
+    
+    try {
+      console.log(`Completing registration for: ${pendingRegistration.email}`);
+      const user = await firebaseRegisterUserWithoutProfile(pendingRegistration.email, pendingRegistration.password);
+      console.log(`User registered successfully with ID: ${user.uid}`);
+      
+      // Update profile with display name
+      await firebaseUpdateUserProfile(pendingRegistration.name, null);
+      console.log('User profile updated with name:', pendingRegistration.name);
+      
+      set({ user, isLoading: false, pendingRegistration: null });
+      await createDefaultPreferences(user.uid);
+      return user;
+    } catch (error: any) {
+      console.error('Registration completion error:', error.message || error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  clearPendingRegistration: () => {
+    set({ pendingRegistration: null });
+  }
 })); 
