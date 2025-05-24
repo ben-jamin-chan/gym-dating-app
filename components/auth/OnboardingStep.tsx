@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput } from 'react-native';
 import { Dumbbell as DumbbellIcon } from 'lucide-react-native';
 import GenderDropdown from './GenderDropdown';
 import FrequencySelector from '@/components/auth/FrequencySelector';
+import DateOfBirthPicker from './DateOfBirthPicker';
 
 type OnboardingStepProps = {
   title: string;
@@ -40,6 +41,18 @@ export default function OnboardingStep({
       
       <View style={styles.fieldsContainer}>
         {fields.map((field, index) => {
+          // Use DateOfBirthPicker for date of birth field
+          if (field === 'dateOfBirth') {
+            return (
+              <DateOfBirthPicker
+                key={index}
+                label="Date of Birth"
+                value={values[field] || ''}
+                onChange={(date) => onChangeValue(field, date)}
+              />
+            );
+          }
+          
           // Use the Gender dropdown component for gender field
           if (field === 'gender') {
             return (

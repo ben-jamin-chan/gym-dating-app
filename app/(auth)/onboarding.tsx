@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/utils/authStore';
 import { saveUserProfile } from '@/utils/firebase';
 import { createDefaultPreferences } from '@/services/preferencesService';
+import { calculateAge } from '@/utils/dateUtils';
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function OnboardingScreen() {
     {
       title: 'Basic Information',
       description: 'Tell us a bit about yourself',
-      fields: ['age', 'height', 'weight', 'gender']
+      fields: ['dateOfBirth', 'height', 'weight', 'gender']
     },
     {
       title: 'Fitness Goals',
@@ -67,12 +68,19 @@ export default function OnboardingScreen() {
         interests = formValues.interests.split(',').map(interest => interest.trim());
       }
       
+      // Calculate age from date of birth
+      let age: number | null = null;
+      if (formValues.dateOfBirth) {
+        age = calculateAge(formValues.dateOfBirth);
+      }
+      
       // Prepare profile data
       const profileData = {
         ...formValues,
         interests,
         // Convert numeric values
-        age: formValues.age ? parseInt(formValues.age, 10) : null,
+        age: age,
+        dateOfBirth: formValues.dateOfBirth || null,
         height: formValues.height ? parseInt(formValues.height, 10) : null,
         weight: formValues.weight ? parseInt(formValues.weight, 10) : null,
         // Make sure gym info and workout preferences are properly saved

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin, Dumbbell, Calendar } from 'lucide-react-native';
 import { UserProfile } from '@/types';
 import { useRouter } from 'expo-router';
+import { calculateAge } from '@/utils/dateUtils';
 
 type ProfileCardProps = {
   profile: UserProfile;
@@ -18,6 +19,9 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
     console.log(`Navigating to profile: ${profile.id}`);
     router.push(`/user-profile?userId=${profile.id}`);
   };
+
+  // Calculate age from date of birth if available, otherwise use stored age
+  const displayAge = profile.dateOfBirth ? calculateAge(profile.dateOfBirth) : profile.age;
 
   // Get appropriate image source with fallback
   const getImageSource = () => {
@@ -68,7 +72,7 @@ export default function ProfileCard({ profile, overlay }: ProfileCardProps) {
       <View style={styles.infoContainer}>
         <View style={styles.nameContainer}>
           <Text style={styles.name}>
-            {profile.displayName || profile.name}, {profile.age}
+            {profile.displayName || profile.name}, {displayAge}
           </Text>
           {profile.verified && (
             <View style={styles.verifiedBadge}>

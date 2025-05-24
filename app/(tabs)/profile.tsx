@@ -12,6 +12,7 @@ import { useAuthStore } from '@/utils/authStore';
 import { getUserProfile } from '@/utils/firebase';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useCallback } from 'react';
+import { calculateAge } from '@/utils/dateUtils';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -164,7 +165,8 @@ export default function ProfileScreen() {
   const profileData = userProfile ? {
     id: user?.uid || '',
     name: userProfile.name || user?.displayName || 'User',
-    age: userProfile.age || 30,
+    age: userProfile.dateOfBirth ? calculateAge(userProfile.dateOfBirth) : (userProfile.age || 30),
+    dateOfBirth: userProfile.dateOfBirth,
     bio: userProfile.bio || 'Fitness enthusiast',
     photos: userProfile.photos || [user?.photoURL || 'https://via.placeholder.com/150'],
     verified: true,

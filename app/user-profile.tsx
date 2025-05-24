@@ -12,6 +12,7 @@ import { useAuthStore } from '@/utils/authStore';
 import { Heart, X, Star, Info } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { recordSwipe } from '@/services/matchService';
+import { calculateAge } from '@/utils/dateUtils';
 
 // Default profile image URL as a fallback
 const DEFAULT_PROFILE_IMAGE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -366,7 +367,9 @@ export default function UserProfileScreen() {
         <View style={styles.headerInfo}>
           <View style={styles.nameAgeContainer}>
             <Text style={styles.name}>{profile.name || profile.displayName}</Text>
-            <Text style={styles.age}>{profile.age}</Text>
+            <Text style={styles.age}>
+              {profile.dateOfBirth ? calculateAge(profile.dateOfBirth) : profile.age}
+            </Text>
           </View>
           {profile.verified && (
             <View style={styles.verifiedBadge}>

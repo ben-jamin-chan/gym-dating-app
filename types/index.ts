@@ -5,6 +5,7 @@ export type UserProfile = {
   email?: string;
   photoURL?: string;
   age: number;
+  dateOfBirth?: string; // ISO date string (YYYY-MM-DD)
   bio: string;
   images?: string[];
   photos?: string[];

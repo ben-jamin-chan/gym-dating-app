@@ -3,6 +3,7 @@ import { View, StyleSheet, Image, Text, TouchableOpacity, ScrollView } from 'rea
 import { UserProfile } from '@/types';
 import { CreditCard as Edit2, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { calculateAge } from '@/utils/dateUtils';
 
 type ProfileHeaderProps = {
   user: UserProfile;
@@ -15,11 +16,14 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
     router.push('/edit-profile');
   };
   
+  // Calculate age from date of birth if available, otherwise use stored age
+  const displayAge = user.dateOfBirth ? calculateAge(user.dateOfBirth) : user.age;
+  
   return (
     <View style={styles.container}>
       <View style={styles.avatarContainer}>
         <Image 
-          source={{ uri: user.photos[0] }}
+          source={{ uri: user.photos?.[0] || 'https://via.placeholder.com/150' }}
           style={styles.avatar}
         />
         <TouchableOpacity 
@@ -39,7 +43,7 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
         </View>
         
         <Text style={styles.ageGender}>
-          {user.age}{user.gender ? `, ${user.gender}` : ''}
+          {displayAge}{user.gender ? `, ${user.gender}` : ''}
         </Text>
         
         <Text style={styles.bio}>{user.bio}</Text>
