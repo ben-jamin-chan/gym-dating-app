@@ -91,10 +91,10 @@ export const getDetailedNetworkInfo = async () => {
     connectionType: netInfo.type,
     details: {
       isConnectionExpensive: netInfo.details?.isConnectionExpensive || false,
-      cellularGeneration: netInfo.details?.cellularGeneration || null,
-      strength: Platform.OS === 'android' ? netInfo.details?.strength : undefined,
-      ssid: netInfo.details?.ssid,
-      ipAddress: netInfo.details?.ipAddress
+      cellularGeneration: (netInfo.details as any)?.cellularGeneration || null,
+      strength: Platform.OS === 'android' ? (netInfo.details as any)?.strength : undefined,
+      ssid: (netInfo.details as any)?.ssid,
+      ipAddress: (netInfo.details as any)?.ipAddress
     }
   };
 }; 

@@ -61,8 +61,8 @@ export default function TestLocationScreen() {
       console.log = originalLog;
       
       setTestResults(testOutput);
-    } catch (error) {
-      setTestResults(`Error running tests: ${error.message}`);
+    } catch (error: any) {
+      setTestResults(`Error running tests: ${error?.message || 'Unknown error'}`);
     }
   };
 
@@ -91,8 +91,8 @@ export default function TestLocationScreen() {
       });
       
       setMatchTestResults(output);
-    } catch (error) {
-      setMatchTestResults(`Error testing matches: ${error.message}`);
+    } catch (error: any) {
+      setMatchTestResults(`Error testing matches: ${error?.message || 'Unknown error'}`);
     }
   };
 

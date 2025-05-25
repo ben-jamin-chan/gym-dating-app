@@ -95,7 +95,7 @@ export default function EditProfileScreen() {
       setIntensity(profile.intensity || '');
       setPreferredTime(profile.preferred_time || '');
       setGymName(profile.gym_name || '');
-      setLocation(profile.location || '');
+      setLocation(typeof profile.location === 'string' ? profile.location : '');
     }
   }, [profile]);
   

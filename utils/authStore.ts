@@ -171,7 +171,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log(`User registered successfully with ID: ${user.uid}`);
       
       // Update profile with display name
-      await firebaseUpdateUserProfile(pendingRegistration.name, null);
+      await firebaseUpdateUserProfile(pendingRegistration.name, undefined);
       console.log('User profile updated with name:', pendingRegistration.name);
       
       set({ user, isLoading: false, pendingRegistration: null });

@@ -53,6 +53,9 @@ export {
   uploadMedia
 } from './storage';
 
+// Firebase Storage direct exports for components
+export { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 // Offline functionality exports
 export {
   queueMessageForSending,

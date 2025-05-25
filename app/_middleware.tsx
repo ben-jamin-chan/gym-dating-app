@@ -1,5 +1,6 @@
 import { withAuth } from '@/utils/withAuth';
 import { Redirect } from 'expo-router';
+import React from 'react';
 
 export default withAuth(({ user, children, segment }) => {
   // Publicly accessible segments
@@ -20,5 +21,5 @@ export default withAuth(({ user, children, segment }) => {
   }
   
   // Otherwise, render the children
-  return children;
+  return <>{children}</>;
 }); 

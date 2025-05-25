@@ -57,7 +57,7 @@ const setupGlobalErrorHandlers = () => {
   }
   
   // Handle unhandled promise rejections
-  if (typeof global !== 'undefined' && global.HermesInternal) {
+  if (typeof global !== 'undefined' && (global as any).HermesInternal) {
     // For Hermes engine
     global.addEventListener?.('unhandledrejection', (event) => {
       const timestamp = new Date().toISOString();

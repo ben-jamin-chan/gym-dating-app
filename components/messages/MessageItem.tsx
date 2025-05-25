@@ -22,7 +22,7 @@ export default function MessageItem({ conversation }: MessageItemProps) {
   // Safely check if user object and properties exist
   const userPhoto = conversation?.user?.photo || defaultPhotoUrl;
   const isUserOnline = conversation?.user?.online || false;
-  const userName = conversation?.user?.name || 'User';
+  const userName = conversation?.user?.name || conversation?.user?.id || `User ${conversation?.userId?.slice(-4) || 'Unknown'}`;
   
   // Safely check lastMessage properties
   const messageText = conversation?.lastMessage?.text || 'No messages yet';

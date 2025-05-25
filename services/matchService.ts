@@ -25,6 +25,7 @@ import {
 import { db } from '../utils/firebase';
 import { getUserPreferences } from './preferencesService';
 import { UserProfile } from '@/types';
+import { useSuperLike, getSuperLikeStatus } from './superLikeService';
 
 // Types for our matching system
 export interface Swipe {
@@ -61,17 +62,40 @@ export const recordSwipe = async (
   action: 'like' | 'pass' | 'superlike'
 ): Promise<Match | null> => {
   try {
+    // If this is a super like, check and consume the super like first
+    if (action === 'superlike') {
+      try {
+        await useSuperLike(userId, targetUserId);
+      } catch (error) {
+        // Re-throw the error with a more user-friendly message
+        throw new Error(`Cannot super like: ${error.message}`);
+      }
+    }
+    
     // Create a unique ID for this swipe combination
     // We'll use a consistent format so we can easily check for mutual likes
     const swipeId = `${userId}_${targetUserId}`;
     
     // Record the swipe in Firestore
-    await setDoc(doc(swipesCollection, swipeId), {
+    console.log('📝 Recording swipe with data:', {
+      swipeId,
       userId,
       targetUserId,
-      action,
-      timestamp: serverTimestamp()
+      action
     });
+    
+    try {
+      await setDoc(doc(swipesCollection, swipeId), {
+        userId,
+        targetUserId,
+        action,
+        timestamp: serverTimestamp()
+      });
+      console.log('✅ Swipe recorded successfully');
+    } catch (swipeError) {
+      console.error('❌ Error recording swipe document:', swipeError);
+      throw new Error(`Failed to record swipe: ${swipeError.message}`);
+    }
     
     // If this was a pass, we're done
     if (action === 'pass') {
@@ -100,26 +124,49 @@ export const recordSwipe = async (
       };
       
       // Save the match to Firestore
-      await setDoc(matchRef, matchData);
+      console.log('🎯 Creating match document:', matchData);
+      try {
+        await setDoc(matchRef, matchData);
+        console.log('✅ Match document created successfully');
+      } catch (matchError) {
+        console.error('❌ Error creating match document:', matchError);
+        throw new Error(`Failed to create match: ${matchError.message}`);
+      }
       
       // Update both users' documents to include this match
-      const batch = writeBatch(db);
-      
-      batch.update(doc(usersCollection, userId), {
-        matches: arrayUnion(matchRef.id)
-      });
-      
-      batch.update(doc(usersCollection, targetUserId), {
-        matches: arrayUnion(matchRef.id)
-      });
-      
-      await batch.commit();
+      console.log('📊 Updating user documents with match ID:', matchRef.id);
+      try {
+        const batch = writeBatch(db);
+        
+        batch.update(doc(usersCollection, userId), {
+          matches: arrayUnion(matchRef.id)
+        });
+        
+        batch.update(doc(usersCollection, targetUserId), {
+          matches: arrayUnion(matchRef.id)
+        });
+        
+        await batch.commit();
+        console.log('✅ User documents updated successfully');
+      } catch (batchError) {
+        console.error('❌ Error updating user documents:', batchError);
+        // Don't throw here as the match was already created
+        console.log('⚠️ Match created but user documents not updated');
+      }
       
       // Call the cloud function to handle match notification
       // This will be implemented on the server side
-      const functions = getFunctions();
-      const notifyMatch = httpsCallable(functions, 'notifyMatch');
-      await notifyMatch({ matchId: matchRef.id });
+      console.log('📢 Calling match notification function');
+      try {
+        const functions = getFunctions();
+        const notifyMatch = httpsCallable(functions, 'notifyMatch');
+        await notifyMatch({ matchId: matchRef.id });
+        console.log('✅ Match notification sent successfully');
+      } catch (notificationError) {
+        console.error('❌ Error sending match notification:', notificationError);
+        // Don't throw here as the match was already created
+        console.log('⚠️ Match created but notification failed');
+      }
       
       return matchData;
     }
@@ -292,8 +339,8 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
  */
 export const getPotentialMatchesWithPreferences = async (userId: string): Promise<UserProfile[]> => {
   try {
-    // Import location utilities
-    const { filterByDistance, getCurrentUserLocation, calculateDistance } = await import('../utils/geoUtils');
+    // Import geo utilities
+    const { filterByDistance, getCurrentUserLocation, calculateDistance } = require('../utils/geoUtils');
     
     // Get the user's preferences
     const preferences = await getUserPreferences(userId);
@@ -422,7 +469,7 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
       // If no location data available, add default distance to profiles for UI consistency
       locationFilteredMatches = potentialMatches.map(profile => ({
         ...profile,
-        distance: undefined // Will show "Distance unavailable" in UI
+        distance: typeof profile.location === 'object' ? calculateDistance(currentUserLocation, profile.location) : undefined
       }));
       
       console.log(`No location filtering applied. Found ${potentialMatches.length} potential matches for user ${userId}`);

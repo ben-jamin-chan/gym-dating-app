@@ -7,15 +7,18 @@ import { ChevronRight, ChevronLeft, ArrowRight } from 'lucide-react-native';
 import OnboardingStep from '@/components/auth/OnboardingStep';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/utils/authStore';
-import { saveUserProfile } from '@/utils/firebase';
+import { saveUserProfile, storage, ref, uploadBytes, getDownloadURL } from '@/utils/firebase';
 import { createDefaultPreferences } from '@/services/preferencesService';
 import { calculateAge } from '@/utils/dateUtils';
+import { refreshFirestoreConnection, emergencyFirestoreReset, handleFirestoreError } from '@/utils/firebase/config';
 
 export default function OnboardingScreen() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [formValues, setFormValues] = useState<Record<string, string | string[]>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [retryAttempts, setRetryAttempts] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
   const { user, pendingRegistration, completePendingRegistration, clearPendingRegistration } = useAuthStore();
 
   // Check if user should be on this screen
@@ -52,10 +55,15 @@ export default function OnboardingScreen() {
       title: 'Bio',
       description: 'Tell others about yourself',
       fields: ['bio', 'interests']
+    },
+    {
+      title: 'Add Photos',
+      description: 'Show your best self',
+      fields: ['photos']
     }
   ];
 
-  const handleValueChange = (field: string, value: string) => {
+  const handleValueChange = (field: string, value: string | string[]) => {
     setFormValues(prev => ({
       ...prev,
       [field]: value
@@ -87,19 +95,64 @@ export default function OnboardingScreen() {
     }
   };
 
-  const saveProfileData = async (userId: string) => {
+  const saveProfileData = async (userId: string): Promise<boolean> => {
+    const maxRetryAttempts = 3;
+    
     try {
       setIsSubmitting(true);
+      setLastError(null);
+      
+      console.log(`🚀 Starting profile save process for ${userId}...`);
       
       // Format interests as an array if provided
       let interests: string[] = [];
-      if (formValues.interests) {
+      if (formValues.interests && typeof formValues.interests === 'string') {
         interests = formValues.interests.split(',').map(interest => interest.trim());
       }
       
+      // Handle photos array and upload local URIs to Firebase Storage
+      const localPhotos = Array.isArray(formValues.photos) ? formValues.photos : [];
+      let uploadedPhotos: string[] = [];
+      
+      // Upload local photo URIs to Firebase Storage
+      if (localPhotos.length > 0) {
+        console.log('📤 Uploading photos to Firebase Storage...');
+        for (let i = 0; i < localPhotos.length; i++) {
+          const photoUri = localPhotos[i];
+          
+          // If it's already a Firebase URL, keep it as is
+          if (photoUri.startsWith('https://firebasestorage.googleapis.com')) {
+            uploadedPhotos.push(photoUri);
+            continue;
+          }
+          
+          try {
+            // Upload local URI to Firebase Storage
+            const filename = `${userId}_${Date.now()}_${i}.jpg`;
+            const storageRef = ref(storage, `profilePhotos/${userId}/${filename}`);
+            
+            // Fetch the image and convert to blob
+            const response = await fetch(photoUri);
+            const blob = await response.blob();
+            
+            // Upload and get URL
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+            uploadedPhotos.push(downloadURL);
+            
+            console.log(`✅ Photo ${i + 1} uploaded successfully`);
+          } catch (error) {
+            console.error(`❌ Failed to upload photo ${i + 1}:`, error);
+            // Continue with other photos even if one fails
+          }
+        }
+      }
+      
+      const photos = uploadedPhotos;
+      
       // Calculate age from date of birth
       let age: number | null = null;
-      if (formValues.dateOfBirth) {
+      if (formValues.dateOfBirth && typeof formValues.dateOfBirth === 'string') {
         age = calculateAge(formValues.dateOfBirth);
       }
       
@@ -107,53 +160,146 @@ export default function OnboardingScreen() {
       const profileData = {
         ...formValues,
         interests,
+        photos, // Add photos array
         // Convert numeric values
         age: age,
-        dateOfBirth: formValues.dateOfBirth || null,
-        height: formValues.height ? parseInt(formValues.height, 10) : null,
-        weight: formValues.weight ? parseInt(formValues.weight, 10) : null,
+        dateOfBirth: (typeof formValues.dateOfBirth === 'string' ? formValues.dateOfBirth : null) || null,
+        height: formValues.height && typeof formValues.height === 'string' ? parseInt(formValues.height, 10) : null,
+        weight: formValues.weight && typeof formValues.weight === 'string' ? parseInt(formValues.weight, 10) : null,
         // Make sure gym info and workout preferences are properly saved
-        workoutFrequency: formValues.workoutFrequency || '',
-        intensity: formValues.intensity || '',
-        preferred_time: formValues.preferred_time || '',
-        gym_name: formValues.gym_name || '',
+        workoutFrequency: (typeof formValues.workoutFrequency === 'string' ? formValues.workoutFrequency : '') || '',
+        intensity: (typeof formValues.intensity === 'string' ? formValues.intensity : '') || '',
+        preferred_time: (typeof formValues.preferred_time === 'string' ? formValues.preferred_time : '') || '',
+        gym_name: (typeof formValues.gym_name === 'string' ? formValues.gym_name : '') || '',
+        bio: (typeof formValues.bio === 'string' ? formValues.bio : '') || '',
         // Additional user data
         displayName: pendingRegistration?.name || user?.displayName,
-        photoURL: user?.photoURL,
+        photoURL: photos.length > 0 ? photos[0] : user?.photoURL, // Use first photo as main profile photo
         email: pendingRegistration?.email || user?.email,
         gymCheckIns: 0,
       };
       
       // Sequential operations to prevent Firestore concurrency issues
-      console.log('Saving user profile...');
+      console.log('💾 Step 1: Saving user profile...');
       await saveUserProfile(userId, profileData);
       
-      // Add a small delay between operations to prevent concurrency issues
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Add a delay between operations to prevent concurrency issues
+      console.log('⏳ Waiting between operations to prevent concurrency issues...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('Creating default preferences...');
+      console.log('⚙️ Step 2: Creating default preferences...');
       await createDefaultPreferences(userId);
       
-      // Add another small delay before navigation
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Add another delay before navigation
+      console.log('⏳ Final wait before completing onboarding...');
+      await new Promise(resolve => setTimeout(resolve, 500));
       
+      console.log('✅ Profile setup completed successfully!');
       return true;
-    } catch (error) {
-      console.error('Error saving profile data:', error);
+    } catch (error: any) {
+      console.error('❌ Error saving profile data:', error);
       
-      // Check if it's a Firestore internal error and suggest retry
-      if (error instanceof Error && error.message.includes('INTERNAL ASSERTION FAILED')) {
+      // Handle the error using our enhanced error handler
+      await handleFirestoreError(error, 'onboarding_saveProfileData');
+      
+      // Check if it's a Firestore internal error
+      const isFirestoreInternalError = error?.message?.includes('INTERNAL ASSERTION FAILED') || 
+                                     error?.message?.includes('Unexpected state') ||
+                                     error?.code === 'unavailable' ||
+                                     error?.message?.includes('Target ID already exists');
+      
+      if (isFirestoreInternalError && retryAttempts < maxRetryAttempts) {
+        const nextAttempt = retryAttempts + 1;
+        setRetryAttempts(nextAttempt);
+        setLastError(`Connection issue detected (attempt ${nextAttempt}/${maxRetryAttempts})`);
+        
+        console.log(`🔄 Attempting automatic retry ${nextAttempt}/${maxRetryAttempts}...`);
+        
+        // Show user that we're retrying
         Alert.alert(
           'Connection Issue', 
-          'There was a temporary connection issue. Please try again.',
+          `We encountered a temporary connection issue. Automatically retrying (${nextAttempt}/${maxRetryAttempts})...`,
+          [{ text: 'OK' }]
+        );
+        
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Try refreshing the connection
+        try {
+          console.log('🔧 Refreshing Firestore connection before retry...');
+          await refreshFirestoreConnection();
+        } catch (refreshError) {
+          console.warn('⚠️ Connection refresh failed, continuing with retry anyway:', refreshError);
+        }
+        
+        // Recursive retry
+        return await saveProfileData(userId);
+      } else if (isFirestoreInternalError) {
+        // Max retries exceeded, offer manual retry options
+        setLastError('Multiple connection issues detected');
+        
+        return new Promise((resolve) => {
+          Alert.alert(
+            'Connection Issues', 
+            'We\'re experiencing connection issues. This is temporary and your data is safe.',
+            [
+              {
+                text: 'Try Again',
+                onPress: async () => {
+                  try {
+                    console.log('🔧 User requested manual retry, refreshing connection...');
+                    await refreshFirestoreConnection();
+                    setRetryAttempts(0); // Reset retry counter
+                    const result = await saveProfileData(userId);
+                    resolve(result);
+                  } catch (retryError) {
+                    console.error('Manual retry failed:', retryError);
+                    resolve(false);
+                  }
+                }
+              },
+              {
+                text: 'Emergency Reset',
+                onPress: async () => {
+                  try {
+                    console.log('🚨 User requested emergency reset...');
+                    await emergencyFirestoreReset();
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    setRetryAttempts(0); // Reset retry counter
+                    const result = await saveProfileData(userId);
+                    resolve(result);
+                  } catch (resetError) {
+                    console.error('Emergency reset failed:', resetError);
+                    resolve(false);
+                  }
+                }
+              },
+              {
+                text: 'Skip for Now',
+                style: 'cancel',
+                onPress: () => {
+                  console.log('User chose to skip profile setup');
+                  // Allow them to continue to the app
+                  resolve(true);
+                }
+              }
+            ]
+          );
+        });
+      } else {
+        // Other types of errors
+        setLastError(error.message || 'Unknown error occurred');
+        Alert.alert(
+          'Error', 
+          'Failed to save your profile. Please check your internet connection and try again.',
           [
             {
               text: 'Retry',
-              onPress: () => {
-                // Retry after a delay
-                setTimeout(() => {
-                  saveUserData();
-                }, 1000);
+              onPress: async () => {
+                setRetryAttempts(0);
+                const result = await saveProfileData(userId);
+                return result;
               }
             },
             {
@@ -162,8 +308,6 @@ export default function OnboardingScreen() {
             }
           ]
         );
-      } else {
-        Alert.alert('Error', 'Failed to save your profile. Please try again.');
       }
       
       return false;
@@ -176,7 +320,18 @@ export default function OnboardingScreen() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Final step - save data and complete onboarding
+      // Final step (photos step) - validate photos before completing onboarding
+      const photos = Array.isArray(formValues.photos) ? formValues.photos : [];
+      if (photos.length < 1) {
+        Alert.alert(
+          'Photo Required',
+          'Please add at least 1 photo to continue. Great photos help you connect with other fitness enthusiasts!',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Save data and complete onboarding
       const success = await saveUserData();
       if (success) {
         // Clear any pending registration data
@@ -184,6 +339,7 @@ export default function OnboardingScreen() {
         
         // Add a small delay before navigation to ensure all operations are complete
         setTimeout(() => {
+          console.log('🎉 Onboarding completed, navigating to main app...');
           router.replace('/(tabs)');
         }, 500);
       }
@@ -197,8 +353,8 @@ export default function OnboardingScreen() {
   };
 
   const handleSkip = async () => {
-    // Skip is only allowed on gym location step (index 3)
-    if (currentStep === 3) {
+    // Skip is allowed on gym location step (index 3) and bio step (index 4)
+    if (currentStep === 3 || currentStep === 4) {
       setCurrentStep(currentStep + 1);
     } else {
       // For other steps, save whatever data was entered and finish onboarding
@@ -217,7 +373,7 @@ export default function OnboardingScreen() {
       
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Create Your Profile</Text>
-        {currentStep === 3 && (
+        {(currentStep === 3 || currentStep === 4) && (
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
             <Text style={styles.skipButtonText}>Skip</Text>
           </TouchableOpacity>

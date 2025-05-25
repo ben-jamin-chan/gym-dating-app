@@ -5,10 +5,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import SwipeCards from '@/components/cards/SwipeCards';
-import { UserProfile } from '@/types';
+import SuperLikeCounter from '@/components/superlike/SuperLikeCounter';
+import { UserProfile, SuperLikeStatus } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
 import { recordSwipe, getSwipedUsers, registerForPushNotifications, getPotentialMatchesWithPreferences } from '@/services/matchService';
 import { getCurrentUserPreferences } from '@/services/preferencesService';
+import { getSuperLikeStatus } from '@/services/superLikeService';
 import { useLocalSearchParams } from 'expo-router';
 
 export default function DiscoverScreen() {
@@ -16,6 +18,7 @@ export default function DiscoverScreen() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [noMoreProfiles, setNoMoreProfiles] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [superLikeStatus, setSuperLikeStatus] = useState<SuperLikeStatus | null>(null);
   const { refresh } = useLocalSearchParams();
 
   // Register for push notifications when the screen loads
@@ -175,6 +178,22 @@ export default function DiscoverScreen() {
         return;
       }
       
+      // Check if user can super like before attempting
+      if (!superLikeStatus?.canUse) {
+        console.log('Super Like attempted but none available - showing alert');
+        Alert.alert(
+          'No Super Likes Available',
+          `You've used all your Super Likes for today. They will reset in ${superLikeStatus?.hoursUntilReset || 0} hours.`,
+          [{ 
+            text: 'OK',
+            onPress: () => {
+              console.log('Super Like alert dismissed - user should continue swiping normally');
+            }
+          }]
+        );
+        return;
+      }
+      
       // Record the super like in Firebase
       const matchResult = await recordSwipe(currentUserId, userId, 'superlike');
       
@@ -198,6 +217,13 @@ export default function DiscoverScreen() {
             }
           ]
         );
+      } else {
+        // Show a confirmation that the super like was sent
+        Alert.alert(
+          'Super Like Sent! ⭐️',
+          'Your Super Like has been sent! If they like you back, you\'ll get a match.',
+          [{ text: 'OK' }]
+        );
       }
       
       // If we're running low on profiles, fetch more
@@ -206,9 +232,26 @@ export default function DiscoverScreen() {
       }
     } catch (error) {
       console.error('Error recording super like:', error);
+      console.log('🔴 [' + new Date().toISOString() + '] ERROR: Error recording super like:', {
+        code: error.code,
+        name: error.name,
+        message: error.message
+      });
+      
+      // Extract user-friendly error message
+      let errorMessage = 'Failed to record your response. Please try again.';
+      if (error.message?.includes('super like') || error.message?.includes('Super Like')) {
+        errorMessage = error.message;
+      } else if (error.code === 'permission-denied') {
+        errorMessage = 'Permission denied. Please check your connection and try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       Alert.alert(
-        'Error',
-        'Failed to record your response. Please try again.'
+        'Super Like Failed',
+        errorMessage,
+        [{ text: 'OK' }]
       );
     }
   };
@@ -218,7 +261,15 @@ export default function DiscoverScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
-        <Text style={styles.appTitle}>SwoleMates</Text>
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>SwoleMates</Text>
+          <SuperLikeCounter 
+            size="medium" 
+            showTimer={true}
+            onStatusChange={setSuperLikeStatus}
+            style={styles.superLikeCounter}
+          />
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#FF5864" />
           <Text style={styles.loadingText}>Loading profiles...</Text>
@@ -232,7 +283,15 @@ export default function DiscoverScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />
-        <Text style={styles.appTitle}>SwoleMates</Text>
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>SwoleMates</Text>
+          <SuperLikeCounter 
+            size="medium" 
+            showTimer={true}
+            onStatusChange={setSuperLikeStatus}
+            style={styles.superLikeCounter}
+          />
+        </View>
         <View style={styles.emptyContainer}>
           <Ionicons name="search" size={60} color="#ccc" />
           <Text style={styles.emptyTitle}>No More Profiles</Text>
@@ -256,13 +315,22 @@ export default function DiscoverScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
-      <Text style={styles.appTitle}>SwoleMates</Text>
+      <View style={styles.header}>
+        <Text style={styles.appTitle}>SwoleMates</Text>
+        <SuperLikeCounter 
+          size="medium" 
+          showTimer={true}
+          onStatusChange={setSuperLikeStatus}
+          style={styles.superLikeCounter}
+        />
+      </View>
       <View style={styles.cardsContainer}>
         <SwipeCards
           profiles={profiles}
           onSwipeLeft={handleSwipeLeft}
           onSwipeRight={handleSwipeRight}
           onSuperLike={handleSuperLike}
+          superLikeStatus={superLikeStatus}
         />
       </View>
     </SafeAreaView>
@@ -274,15 +342,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#fff',
+  },
   appTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FF5864',
-    textAlign: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
+    flex: 1,
+  },
+  superLikeCounter: {
+    marginLeft: 16,
   },
   cardsContainer: {
     flex: 1,

@@ -14,6 +14,7 @@ import { checkNetworkBeforeOperation, logFirebaseError, storeUserCredentials, cl
 import { GeoPoint } from 'firebase/firestore';
 import { geoFirestore } from './config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { refreshFirestoreConnection } from './config';
 
 // Helper function to save user profile (internal to this module to avoid circular deps)
 const saveUserProfileInternal = async (userId: string, profileData: any) => {
@@ -44,9 +45,8 @@ const saveUserProfileInternal = async (userId: string, profileData: any) => {
 // For React Native, attempt auto-login with stored credentials
 if (Platform.OS !== 'web') {
   // Import and run the check on initialization
-  import('./utils').then(utils => {
-    utils.checkAndAutoSignIn();
-  });
+  const { checkAndAutoSignIn } = require('./utils');
+  checkAndAutoSignIn();
 }
 
 export const registerUser = async (email: string, password: string) => {
@@ -322,4 +322,8 @@ export const updateUserLocation = async (userId: string, latitude: number, longi
     console.warn('Error updating user location:', error);
     return false;
   }
-}; 
+};
+
+refreshFirestoreConnection().then(() => {
+  // Additional logic after refreshing Firestore connection
+}); 

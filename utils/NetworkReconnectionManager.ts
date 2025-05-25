@@ -102,7 +102,7 @@ class NetworkReconnectionManager {
         const shouldReconnect = await this.shouldAttemptReconnection();
         if (shouldReconnect) {
           console.log('Network is back - attempting automatic Firestore reconnection');
-          await this.attemptReconnection();
+          await this.attemptReconnection('Network connectivity restored');
           
           // Process any pending location updates
           try {
@@ -199,83 +199,83 @@ class NetworkReconnectionManager {
     }
     
     try {
-      // Check current network state
+      // First, check if we're actually online
       const netInfo = await NetInfo.fetch();
-      
-      // More robust network check - treat null isInternetReachable as potentially connected
       const isConnected = netInfo.isConnected && (netInfo.isInternetReachable !== false);
       
-      if (isConnected) {
+      if (!isConnected) {
         if (!isSilentCheck || this.verboseLogging) {
-          console.log('Network is available, refreshing Firebase connection...');
+          console.log('No internet connection available, skipping reconnection');
         }
-        
-        // Refresh Firebase connection
-        await refreshFirebaseConnection(isSilentCheck);
-        
-        // Process any pending messages
-        await processPendingMessages();
-        
-        // Process any pending location updates
-        try {
-          await processPendingLocationUpdates();
-        } catch (error) {
-          console.warn('Error processing pending location updates during reconnection:', error);
-        }
-        
-        if (!isSilentCheck || this.verboseLogging) {
-          console.log('Reconnection successful');
-        }
-        
-        this.consecutiveFailures = 0;
-        
-        // Start periodic checks again if enabled
-        if (this.periodicChecksEnabled) {
-          this.startReconnectionTimer(this.periodicCheckInterval);
-        }
-        
-        this.notifyConnectionStateChange(true);
-        return true;
-      } else {
-        if (this.verboseLogging) {
-          console.log('Network not available for reconnection');
-        }
-        this.handleReconnectionFailure();
+        this.isReconnecting = false;
         this.notifyConnectionStateChange(false);
         return false;
       }
-    } catch (error) {
-      console.error('Error during reconnection attempt:', error);
-      this.handleReconnectionFailure();
-      return false;
-    } finally {
+      
+      // Track this reconnection attempt
+      await this.trackReconnectionAttempt();
+      
+      // Refresh Firestore connection first
+      if (!isSilentCheck || this.verboseLogging) {
+        console.log('🔄 Refreshing Firestore connection...');
+      }
+      await refreshFirestoreConnection();
+      
+      // Then refresh Firebase connection
+      if (!isSilentCheck || this.verboseLogging) {
+        console.log('🔄 Refreshing Firebase connection...');
+      }
+      await refreshFirebaseConnection();
+      
+      // Process any pending messages
+      try {
+        await processPendingMessages();
+      } catch (messageError) {
+        console.warn('Error processing pending messages:', messageError);
+      }
+      
+      // Reset consecutive failures on success
+      this.consecutiveFailures = 0;
+      
+      if (!isSilentCheck || this.verboseLogging) {
+        console.log('✅ Network reconnection successful');
+      }
+      
+      this.notifyConnectionStateChange(true);
+      
       this.isReconnecting = false;
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Network reconnection failed:', error);
+      this.handleReconnectionFailure();
+      this.isReconnecting = false;
+      this.notifyConnectionStateChange(false);
+      return false;
     }
   };
 
   handleReconnectionFailure() {
     this.consecutiveFailures++;
     
-    // Calculate next interval with exponential backoff
-    const backoffFactor = Math.min(Math.pow(2, this.consecutiveFailures - 1), 10);
+    // Exponential backoff with max limit
     const nextInterval = Math.min(
-      this.RECONNECT_INTERVAL_BASE * backoffFactor,
+      this.RECONNECT_INTERVAL_BASE * Math.pow(2, this.consecutiveFailures),
       this.MAX_RECONNECT_INTERVAL
     );
     
-    if (this.verboseLogging) {
-      console.log(`Reconnection failed. Next attempt in ${nextInterval/1000} seconds`);
-    }
+    console.log(`Reconnection failed. Next attempt in ${nextInterval / 1000} seconds.`);
     
-    if (this.periodicChecksEnabled) {
-      this.startReconnectionTimer(nextInterval);
-    }
+    // Start timer for next attempt
+    this.startReconnectionTimer(nextInterval);
   }
 
   startReconnectionTimer(interval: number = this.periodicCheckInterval) {
+    // Clear existing timer
     this.stopReconnectionTimer();
     
-    // Set timer for next reconnection attempt
+    if (!this.periodicChecksEnabled) return;
+    
     this.reconnectionTimerId = setTimeout(() => {
       this.attemptReconnection('Periodic check');
     }, interval);
@@ -289,8 +289,7 @@ class NetworkReconnectionManager {
   }
 
   cleanup() {
-    this.stopReconnectionTimer();
-    
+    // Clean up all subscriptions and timers
     if (this.netInfoSubscription) {
       this.netInfoSubscription();
       this.netInfoSubscription = null;
@@ -300,149 +299,45 @@ class NetworkReconnectionManager {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
     }
+    
+    this.stopReconnectionTimer();
+    this.onConnectionStateChangeCallbacks = [];
   }
 
   private async shouldAttemptReconnection(): Promise<boolean> {
     try {
-      // Get the timestamp of the last reconnection attempt
-      const lastReconnectionStr = await AsyncStorage.getItem(LAST_RECONNECTION_ATTEMPT_KEY);
-      const reconnectionCountStr = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
+      const lastAttemptString = await AsyncStorage.getItem(LAST_RECONNECTION_ATTEMPT_KEY);
+      const lastAttempt = lastAttemptString ? parseInt(lastAttemptString, 10) : 0;
+      const countString = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
+      const count = countString ? parseInt(countString, 10) : 0;
       
       const now = Date.now();
-      const lastReconnection = lastReconnectionStr ? parseInt(lastReconnectionStr) : 0;
-      const reconnectionCount = reconnectionCountStr ? parseInt(reconnectionCountStr) : 0;
+      const timeSinceLastAttempt = now - lastAttempt;
       
-      // If we've attempted reconnection too many times in a short period, enter cooldown
-      if (reconnectionCount >= MAX_QUICK_RECONNECTIONS && 
-          now - lastReconnection < RECONNECTION_COOLDOWN) {
-        console.log('Too many reconnection attempts, in cooldown period');
-        return false;
+      // If more than cooldown period has passed, reset count
+      if (timeSinceLastAttempt > RECONNECTION_COOLDOWN) {
+        await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, '0');
+        return true;
       }
       
-      // If we're in cooldown period, don't attempt reconnection
-      if (now - lastReconnection < 10000) { // 10 second minimum between attempts
-        console.log('Recent reconnection attempt, waiting before trying again');
-        return false;
-      }
-      
-      return true;
+      // Allow if we haven't exceeded max quick reconnections
+      return count < MAX_QUICK_RECONNECTIONS;
     } catch (error) {
-      console.error('Error checking reconnection status:', error);
-      return true; // Default to allowing reconnection on error
-    }
-  }
-  
-  private async trackReconnectionAttempt() {
-    try {
-      const now = Date.now().toString();
-      await AsyncStorage.setItem(LAST_RECONNECTION_ATTEMPT_KEY, now);
-      
-      // Update reconnection count
-      const reconnectionCountStr = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
-      const reconnectionCount = reconnectionCountStr ? parseInt(reconnectionCountStr) : 0;
-      
-      // If last reconnection was more than cooldown period ago, reset the count
-      const lastReconnectionStr = await AsyncStorage.getItem(LAST_RECONNECTION_ATTEMPT_KEY);
-      const lastReconnection = lastReconnectionStr ? parseInt(lastReconnectionStr) : 0;
-      
-      if (Date.now() - lastReconnection > RECONNECTION_COOLDOWN) {
-        await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, '1');
-      } else {
-        await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, (reconnectionCount + 1).toString());
-      }
-    } catch (error) {
-      console.error('Error tracking reconnection attempt:', error);
-    }
-  }
-  
-  private async attemptReconnection() {
-    if (this.isReconnecting) {
-      console.log('Reconnection already in progress, skipping');
-      return;
-    }
-    
-    this.isReconnecting = true;
-    
-    try {
-      await this.trackReconnectionAttempt();
-      
-      // Completely disconnect and reconnect Firestore
-      await disableFirestoreNetwork();
-      
-      // Add a delay before re-enabling to allow time for cleanup
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Re-enable the network
-      await enableFirestoreNetwork();
-      
-      // Explicitly refresh the connection to clear any target ID issues
-      await refreshFirestoreConnection();
-      
-      console.log('Firestore reconnection completed successfully');
-    } catch (error) {
-      console.error('Error during automatic Firestore reconnection:', error);
-    } finally {
-      this.isReconnecting = false;
+      console.error('Error checking reconnection eligibility:', error);
+      return true; // Default to allowing reconnection if we can't check
     }
   }
 
-  // Public method for manual reconnection from UI
-  public async manualReconnect(): Promise<boolean> {
-    if (this.isReconnecting) {
-      console.log('Reconnection already in progress');
-      return false;
-    }
-    
-    this.isReconnecting = true;
-    
+  private async trackReconnectionAttempt() {
     try {
-      // Check network status first
-      const netInfo = await NetInfo.fetch();
-      if (!netInfo.isConnected || !netInfo.isInternetReachable) {
-        console.log('No network available for manual reconnection');
-        return false;
-      }
+      const now = Date.now();
+      const countString = await AsyncStorage.getItem(RECONNECTION_COUNT_KEY);
+      const count = countString ? parseInt(countString, 10) : 0;
       
-      console.log('Attempting manual Firestore reconnection');
-      
-      // Reset reconnection count for manual attempt
-      await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, '0');
-      
-      // Complete reconnection cycle
-      await disableFirestoreNetwork();
-      console.log('Network disabled for manual reconnection');
-      
-      // Longer delay for manual reconnection to ensure complete disconnect
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Re-enable network
-      await enableFirestoreNetwork();
-      console.log('Network re-enabled for manual reconnection');
-      
-      // Wait for connection to stabilize
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Refresh the connection
-      const success = await refreshFirestoreConnection();
-      console.log('Manual Firestore reconnection result:', success ? 'success' : 'failed');
-      
-      if (success) {
-        // Process any pending location updates
-        try {
-          await processPendingLocationUpdates();
-        } catch (error) {
-          console.warn('Error processing pending location updates after manual reconnection:', error);
-        }
-        
-        this.notifyConnectionStateChange(true);
-      }
-      
-      return success;
+      await AsyncStorage.setItem(LAST_RECONNECTION_ATTEMPT_KEY, now.toString());
+      await AsyncStorage.setItem(RECONNECTION_COUNT_KEY, (count + 1).toString());
     } catch (error) {
-      console.error('Error during manual Firestore reconnection:', error);
-      return false;
-    } finally {
-      this.isReconnecting = false;
+      console.error('Error tracking reconnection attempt:', error);
     }
   }
 }

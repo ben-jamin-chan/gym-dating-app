@@ -106,3 +106,28 @@ export type NetworkStatus = {
   isConnected: boolean;
   lastConnected: string;
 };
+
+// Super Like Types
+export type SuperLikeData = {
+  userId: string;
+  usedCount: number;
+  totalAllowed: number;
+  resetTime: Date;
+  lastUsed?: Date;
+  dailyReset: boolean;
+};
+
+export type SuperLikeUsage = {
+  userId: string;
+  targetUserId: string;
+  timestamp: Date;
+  dayKey: string;
+};
+
+export type SuperLikeStatus = {
+  remaining: number;
+  total: number;
+  resetTime: Date;
+  canUse: boolean;
+  hoursUntilReset: number;
+};

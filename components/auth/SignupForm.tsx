@@ -12,15 +12,33 @@ export default function SignupForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const { isLoading, error, clearError, setPendingRegistration, user } = useAuthStore();
+  const { isLoading, error, clearError, setPendingRegistration, user, logout } = useAuthStore();
+  const [showLoggedInPrompt, setShowLoggedInPrompt] = useState(false);
 
-  // Redirect if user is already logged in
+  // Check if user is already logged in and show prompt instead of auto-redirecting
   React.useEffect(() => {
     if (user) {
-      console.log('User already logged in, redirecting to main app');
-      router.replace('/(tabs)');
+      console.log('User already logged in, showing sign out prompt');
+      setShowLoggedInPrompt(true);
     }
-  }, [user, router]);
+  }, [user]);
+
+  const handleSignOutAndSignUp = async () => {
+    try {
+      console.log('Signing out current user to create new account...');
+      await logout();
+      setShowLoggedInPrompt(false);
+      console.log('User signed out, ready for new registration');
+    } catch (err: any) {
+      console.error('Error signing out:', err.message || err);
+      Alert.alert('Error', 'Failed to sign out. Please try again.');
+    }
+  };
+
+  const handleGoToMainApp = () => {
+    console.log('User chose to go to main app');
+    router.replace('/(tabs)');
+  };
 
   const handleSignup = async () => {
     if (!name || !email || !password) {
@@ -52,6 +70,33 @@ export default function SignupForm() {
   React.useEffect(() => {
     clearError();
   }, [clearError]);
+
+  // Show logged in prompt if user is already authenticated
+  if (showLoggedInPrompt) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.promptContainer}>
+          <Text style={styles.promptTitle}>Already Logged In</Text>
+          <Text style={styles.promptText}>
+            You're already signed in. Would you like to go to the main app or sign out to create a new account?
+          </Text>
+          
+          <Button 
+            title="Go to Main App"
+            onPress={handleGoToMainApp}
+            style={styles.primaryButton}
+          />
+          
+          <Button 
+            title="Sign Out & Create New Account"
+            onPress={handleSignOutAndSignUp}
+            style={styles.secondaryButton}
+            variant="outline"
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -180,5 +225,39 @@ const styles = StyleSheet.create({
   },
   signupButton: {
     marginTop: 8,
+  },
+  promptContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 16,
+  },
+  promptTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 20,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  promptText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    color: '#E5E7EB',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  primaryButton: {
+    marginTop: 8,
+    width: '100%',
+  },
+  secondaryButton: {
+    marginTop: 0,
+    width: '100%',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  secondaryButtonText: {
+    color: '#E5E7EB',
   },
 });

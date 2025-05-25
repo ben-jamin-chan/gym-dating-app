@@ -28,24 +28,24 @@ function WebMapFallback({ children, style, ...props }: MapViewProps) {
   );
 }
 
-// Export components based on platform
-export const MapView = Platform.select({
-  ios: NativeMapView,
-  android: NativeMapView,
-  default: WebMapFallback,
-}) as React.ComponentType<MapViewProps>;
+// Platform-specific map components
+const MapView = Platform.select({
+  ios: () => require('react-native-maps').default,
+  android: () => require('react-native-maps').default,
+  default: () => WebMapFallback,
+})();
 
-export const Marker = Platform.select({
-  ios: NativeMarker,
-  android: NativeMarker,
-  default: View,
-}) as React.ComponentType<any>;
+const MapMarker = Platform.select({
+  ios: () => require('react-native-maps').Marker,
+  android: () => require('react-native-maps').Marker,
+  default: () => View,
+})();
 
-export const Callout = Platform.select({
-  ios: NativeCallout,
-  android: NativeCallout,
-  default: View,
-}) as React.ComponentType<any>;
+const MapCallout = Platform.select({
+  ios: () => require('react-native-maps').Callout,
+  android: () => require('react-native-maps').Callout,
+  default: () => View,
+})();
 
 export const PROVIDER_GOOGLE = NATIVE_PROVIDER_GOOGLE;
 

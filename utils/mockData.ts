@@ -1,4 +1,4 @@
-import { UserProfile, Match, Conversation } from '@/types';
+import { UserProfile, Match, Conversation, Message } from '@/types';
 
 export const mockCurrentUser: UserProfile = {
   id: 'current-user',
@@ -12,7 +12,7 @@ export const mockCurrentUser: UserProfile = {
   gymCheckIns: 15,
   interests: ['Weightlifting', 'Running', 'Nutrition', 'Yoga'],
   preferredWorkouts: ['HIIT', 'Strength Training', 'Cardio'],
-  gymLocation: 'Fitness First Downtown'
+  location: 'Fitness First Downtown'
 };
 
 export const mockProfiles: UserProfile[] = [
@@ -134,7 +134,7 @@ export const mockConversations: Conversation[] = [
     },
     lastMessage: {
       text: "Hey! I saw you're into yoga too. What style do you practice?",
-      timestamp: '2023-07-16T10:30:00Z',
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
       read: false
     }
   },
@@ -150,7 +150,7 @@ export const mockConversations: Conversation[] = [
     },
     lastMessage: {
       text: "Let me know if you want to try that new gym downtown this weekend!",
-      timestamp: '2023-07-15T14:45:00Z',
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
       read: true
     }
   },
@@ -166,8 +166,97 @@ export const mockConversations: Conversation[] = [
     },
     lastMessage: {
       text: "I'm running a 10K this Saturday. Want to join?",
-      timestamp: '2023-07-14T09:20:00Z',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
       read: true
     }
   }
 ];
+
+export const mockMessages: Record<string, Message[]> = {
+  'conv1': [
+    {
+      id: 'msg1',
+      conversationId: 'conv1',
+      sender: 'user1',
+      text: "Hey! I saw you're into yoga too. What style do you practice?",
+      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    },
+    {
+      id: 'msg2',
+      conversationId: 'conv1',
+      sender: 'current-user',
+      text: "Hi Emma! I mainly do Vinyasa and Hatha. How about you?",
+      timestamp: new Date(Date.now() - 1.5 * 60 * 60 * 1000).toISOString(), // 1.5 hours ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    },
+    {
+      id: 'msg3',
+      conversationId: 'conv1',
+      sender: 'user1',
+      text: "Nice! I teach Vinyasa classes. Would you like to join one of my sessions sometime?",
+      timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 hour ago
+      read: false,
+      status: 'delivered',
+      type: 'text'
+    }
+  ],
+  'conv2': [
+    {
+      id: 'msg4',
+      conversationId: 'conv2',
+      sender: 'user2',
+      text: "Hey! Want to hit the gym together this weekend?",
+      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    },
+    {
+      id: 'msg5',
+      conversationId: 'conv2',
+      sender: 'current-user',
+      text: "Sounds great! What time works for you?",
+      timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 hours ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    },
+    {
+      id: 'msg6',
+      conversationId: 'conv2',
+      sender: 'user2',
+      text: "Let me know if you want to try that new gym downtown this weekend!",
+      timestamp: new Date(Date.now() - 22 * 60 * 60 * 1000).toISOString(), // 22 hours ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    }
+  ],
+  'conv3': [
+    {
+      id: 'msg7',
+      conversationId: 'conv3',
+      sender: 'user3',
+      text: "I'm running a 10K this Saturday. Want to join?",
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    },
+    {
+      id: 'msg8',
+      conversationId: 'conv3',
+      sender: 'current-user',
+      text: "That sounds challenging! What's your usual pace?",
+      timestamp: new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000).toISOString(), // 2.5 days ago
+      read: true,
+      status: 'read',
+      type: 'text'
+    }
+  ]
+};

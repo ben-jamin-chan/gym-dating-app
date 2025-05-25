@@ -109,7 +109,7 @@ export default function LoginForm() {
         onPress={handleLogin}
         style={styles.loginButton}
         disabled={isLoading}
-        icon={isLoading ? () => <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
+        loading={isLoading}
       />
     </View>
   );

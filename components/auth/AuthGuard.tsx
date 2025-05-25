@@ -18,7 +18,7 @@ export function AuthGuard({ children, fallbackPath = '/' }: AuthGuardProps) {
     const timeout = setTimeout(() => {
       // If not loading and no user, redirect to fallback path
       if (!isLoading && !user) {
-        router.replace(fallbackPath);
+        router.replace(fallbackPath as any);
       }
     }, 100);
     

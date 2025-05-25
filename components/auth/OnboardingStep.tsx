@@ -4,14 +4,15 @@ import { Dumbbell as DumbbellIcon } from 'lucide-react-native';
 import GenderDropdown from './GenderDropdown';
 import FrequencySelector from '@/components/auth/FrequencySelector';
 import DateOfBirthPicker from './DateOfBirthPicker';
+import PhotoUploader from './PhotoUploader';
 
 type OnboardingStepProps = {
   title: string;
   description: string;
   stepNumber: number;
   fields: string[];
-  values: Record<string, string>;
-  onChangeValue: (field: string, value: string) => void;
+  values: Record<string, string | string[]>;
+  onChangeValue: (field: string, value: string | string[]) => void;
 };
 
 export default function OnboardingStep({ 
@@ -41,13 +42,27 @@ export default function OnboardingStep({
       
       <View style={styles.fieldsContainer}>
         {fields.map((field, index) => {
+          // Handle photo upload field
+          if (field === 'photos') {
+            const photos = Array.isArray(values[field]) ? values[field] as string[] : [];
+            return (
+              <PhotoUploader
+                key={index}
+                photos={photos}
+                onPhotosChange={(newPhotos) => onChangeValue(field, newPhotos)}
+                maxPhotos={6}
+                minPhotos={1}
+              />
+            );
+          }
+          
           // Use DateOfBirthPicker for date of birth field
           if (field === 'dateOfBirth') {
             return (
               <DateOfBirthPicker
                 key={index}
                 label="Date of Birth"
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChange={(date) => onChangeValue(field, date)}
               />
             );
@@ -59,7 +74,7 @@ export default function OnboardingStep({
               <GenderDropdown
                 key={index}
                 label={formatFieldLabel(field)}
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChange={(text) => onChangeValue(field, text)}
               />
             );
@@ -72,7 +87,7 @@ export default function OnboardingStep({
                 key={index}
                 title={formatFieldLabel(field)}
                 options={frequencyOptions}
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChange={(value) => onChangeValue(field, value)}
               />
             );
@@ -84,7 +99,7 @@ export default function OnboardingStep({
                 key={index}
                 title={formatFieldLabel(field)}
                 options={intensityOptions}
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChange={(value) => onChangeValue(field, value)}
               />
             );
@@ -96,7 +111,7 @@ export default function OnboardingStep({
                 key={index}
                 title={formatFieldLabel(field)}
                 options={timeOptions}
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChange={(value) => onChangeValue(field, value)}
               />
             );
@@ -111,7 +126,7 @@ export default function OnboardingStep({
                   style={styles.fieldInput}
                   placeholder="Enter your height in centimeters"
                   placeholderTextColor="#9CA3AF"
-                  value={values[field] || ''}
+                  value={typeof values[field] === 'string' ? values[field] as string : ''}
                   onChangeText={(text) => onChangeValue(field, text)}
                   keyboardType="numeric"
                   returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
@@ -131,7 +146,7 @@ export default function OnboardingStep({
                   style={styles.fieldInput}
                   placeholder="Enter your weight in kilograms"
                   placeholderTextColor="#9CA3AF"
-                  value={values[field] || ''}
+                  value={typeof values[field] === 'string' ? values[field] as string : ''}
                   onChangeText={(text) => onChangeValue(field, text)}
                   keyboardType="numeric"
                   returnKeyType={index === fields.length - 1 ? 'done' : 'next'}
@@ -151,7 +166,7 @@ export default function OnboardingStep({
                   style={styles.fieldInput}
                   placeholder="Enter your gym's location"
                   placeholderTextColor="#9CA3AF"
-                  value={values[field] || ''}
+                  value={typeof values[field] === 'string' ? values[field] as string : ''}
                   onChangeText={(text) => onChangeValue(field, text)}
                   autoCapitalize="words"
                   autoCorrect={true}
@@ -171,7 +186,7 @@ export default function OnboardingStep({
                 style={styles.fieldInput}
                 placeholder={`Enter your ${formatFieldLabel(field).toLowerCase()}`}
                 placeholderTextColor="#9CA3AF"
-                value={values[field] || ''}
+                value={typeof values[field] === 'string' ? values[field] as string : ''}
                 onChangeText={(text) => onChangeValue(field, text)}
                 autoCapitalize={field === 'bio' || field === 'interests' || field === 'gym_name' ? 'sentences' : 'none'}
                 autoCorrect={field === 'bio' || field === 'interests' || field === 'gym_name'}

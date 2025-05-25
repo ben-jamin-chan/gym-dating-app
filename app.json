@@ -13,6 +13,8 @@
       "bundleIdentifier": "com.benjaminchan.bolt-expo-nativewind",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to find nearby matches.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for chat messages.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to share images in chat.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -26,7 +28,13 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "android.permission.CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "package": "com.benjaminchan.boltexponativewind",
       "config": {
@@ -46,6 +54,13 @@
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow this app to use your location to find nearby matches."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them in chat messages.",
+          "cameraPermission": "The app accesses your camera to let you take photos for chat messages."
         }
       ],
       "expo-font",

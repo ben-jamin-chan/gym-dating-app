@@ -2,15 +2,17 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { X, Heart, Star } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { SuperLikeStatus } from '@/types';
 
 type CardActionsProps = {
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   onSuperLike: () => void;
   disabled?: boolean;
+  superLikeStatus?: SuperLikeStatus | null;
 };
 
-export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike, disabled = false }: CardActionsProps) {
+export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike, disabled = false, superLikeStatus }: CardActionsProps) {
   const handleSwipeLeft = () => {
     if (disabled) return;
     
@@ -34,6 +36,15 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike, di
   const handleSuperLike = () => {
     if (disabled) return;
     
+    // Check if user can use super like
+    if (!superLikeStatus?.canUse) {
+      console.log("Super Like disabled: No remaining super likes");
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+      return;
+    }
+    
     console.log("Action button: Super Like");
     if (Platform.OS !== 'web') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -53,12 +64,19 @@ export default function CardActions({ onSwipeLeft, onSwipeRight, onSuperLike, di
       </TouchableOpacity>
       
       <TouchableOpacity 
-        style={[styles.button, styles.superlikeButton, disabled && styles.disabledButton]}
+        style={[
+          styles.button, 
+          styles.superlikeButton, 
+          (disabled || !superLikeStatus?.canUse) && styles.disabledButton
+        ]}
         onPress={handleSuperLike}
-        activeOpacity={disabled ? 0.9 : 0.7}
-        disabled={disabled}
+        activeOpacity={(disabled || !superLikeStatus?.canUse) ? 0.9 : 0.7}
+        disabled={disabled || !superLikeStatus?.canUse}
       >
-        <Star size={30} color={disabled ? "#CCCCCC" : "#60A5FA"} />
+        <Star 
+          size={30} 
+          color={(disabled || !superLikeStatus?.canUse) ? "#CCCCCC" : "#60A5FA"} 
+        />
       </TouchableOpacity>
       
       <TouchableOpacity 

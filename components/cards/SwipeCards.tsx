@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder, Animated, Platform } from 'react-native';
 import ProfileCard from '@/components/cards/ProfileCard';
 import CardActions from '@/components/cards/CardActions';
-import { UserProfile } from '@/types';
+import { UserProfile, SuperLikeStatus } from '@/types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -15,9 +15,10 @@ type SwipeCardsProps = {
   onSwipeLeft: (id: string) => void;
   onSwipeRight: (id: string) => void;
   onSuperLike: (id: string) => void;
+  superLikeStatus?: SuperLikeStatus | null;
 };
 
-export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSuperLike }: SwipeCardsProps) {
+export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSuperLike, superLikeStatus }: SwipeCardsProps) {
   // Track the current card index
   const [currentIndex, setCurrentIndex] = useState(0);
   
@@ -44,16 +45,23 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
       setOverlay('like');
     } else if (dx < -SWIPE_THRESHOLD) {
       setOverlay('nope');
-    } else if (dy < -SWIPE_UP_THRESHOLD) {
-      setOverlay('superlike');
-    } else {
-      setOverlay(null);
-    }
-  }, []);
+            } else if (dy < -SWIPE_UP_THRESHOLD && superLikeStatus?.canUse) {
+          setOverlay('superlike');
+        } else {
+          setOverlay(null);
+        }
+  }, [superLikeStatus]);
 
   // Handler for swiping a card
   const handleSwipe = useCallback((direction: 'left' | 'right' | 'up') => {
     if (isAnimating || currentIndex >= profiles.length) return;
+    
+    // Check if Super Like is available before processing up swipe
+    if (direction === 'up' && (!superLikeStatus?.canUse)) {
+      console.log('Super Like not available, ignoring up swipe');
+      resetPosition();
+      return;
+    }
     
     setIsAnimating(true);
     
@@ -109,7 +117,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         }, 50);
       }
     });
-  }, [currentIndex, isAnimating, onSwipeLeft, onSwipeRight, onSuperLike, profiles]);
+  }, [currentIndex, isAnimating, onSwipeLeft, onSwipeRight, onSuperLike, profiles, superLikeStatus, resetPosition]);
   
   // Reset card position for cancelled swipes
   const resetPosition = useCallback(() => {
@@ -248,10 +256,12 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
   }, [handleSwipe]);
   
   const handleSuperLike = useCallback(() => {
-    if (!gestureInProgress.current) {
+    if (!gestureInProgress.current && superLikeStatus?.canUse) {
       handleSwipe('up');
+    } else if (!superLikeStatus?.canUse) {
+      console.log('Super Like button pressed but no Super Likes available');
     }
-  }, [handleSwipe]);
+  }, [handleSwipe, superLikeStatus]);
 
   return (
     <View style={styles.container}>
@@ -263,6 +273,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         onSwipeRight={handleSwipeRight}
         onSuperLike={handleSuperLike}
         disabled={isAnimating}
+        superLikeStatus={superLikeStatus}
       />
     </View>
   );

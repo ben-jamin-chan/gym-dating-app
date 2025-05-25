@@ -16,9 +16,10 @@ import { AuthProvider } from '@/components/auth/AuthProvider';
 import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
 import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { refreshFirestoreConnection } from '@/utils/firebase';
+import { refreshFirestoreConnection } from '@/utils/firebase/config';
 import { testFirebaseConfig } from '@/utils/firebase/test-config';
 import LocationTracker from '@/components/LocationTracker';
+import { getFirebaseHealthStatus } from '@/utils/firebase/config';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -57,7 +58,7 @@ export default function RootLayout() {
     const initializeFirebase = async () => {
       if (hasResetFirestoreConnection.current) return;
       
-      console.log('Testing Firebase configuration...');
+      console.log('🔥 Testing Firebase configuration...');
       
       try {
         // Test Firebase config
@@ -69,6 +70,9 @@ export default function RootLayout() {
           await refreshFirestoreConnection();
           hasResetFirestoreConnection.current = true;
           console.log('✅ Initial Firestore connection reset completed successfully');
+          
+          // Start periodic health checks
+          startPeriodicHealthChecks();
         } else {
           console.warn('⚠️ Firebase configuration test failed, but continuing...');
         }
@@ -82,6 +86,7 @@ export default function RootLayout() {
             .then(() => {
               hasResetFirestoreConnection.current = true;
               console.log('✅ Retry Firebase initialization completed');
+              startPeriodicHealthChecks();
             })
             .catch(retryError => {
               console.error('❌ Retry Firebase initialization failed:', retryError);
@@ -89,6 +94,47 @@ export default function RootLayout() {
             });
         }, 5000);
       }
+    };
+    
+    // Function to start periodic health checks
+    const startPeriodicHealthChecks = () => {
+      console.log('🩺 Starting periodic Firebase health checks...');
+      
+      // Check health every 2 minutes
+      const healthCheckInterval = setInterval(async () => {
+        try {
+          const healthStatus = await getFirebaseHealthStatus();
+          
+          if (!healthStatus.healthy) {
+            console.warn('⚠️ Firebase health check failed:', healthStatus.issues);
+            
+            // If we have critical issues, attempt proactive recovery
+            const hasCriticalIssues = healthStatus.issues.some(issue => 
+              issue.includes('internal assertion') || 
+              issue.includes('High error count')
+            );
+            
+            if (hasCriticalIssues) {
+              console.log('🔧 Critical issues detected, attempting proactive recovery...');
+              try {
+                await refreshFirestoreConnection();
+                console.log('✅ Proactive recovery completed');
+              } catch (recoveryError) {
+                console.error('❌ Proactive recovery failed:', recoveryError);
+              }
+            }
+          } else {
+            console.log('✅ Firebase health check passed');
+          }
+        } catch (healthError) {
+          console.error('❌ Health check failed:', healthError);
+        }
+      }, 120000); // Check every 2 minutes
+      
+      // Clean up interval on unmount
+      return () => {
+        clearInterval(healthCheckInterval);
+      };
     };
     
     // Start Firebase initialization

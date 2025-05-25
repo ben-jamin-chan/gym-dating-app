@@ -103,7 +103,7 @@ export default function useProfile() {
       
       try {
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [4, 3],
           quality: 0.8,
@@ -127,14 +127,12 @@ export default function useProfile() {
           return downloadURL;
         }
         return null;
-      } catch (err) {
-        console.error('Error during image selection or upload:', err);
-        Alert.alert('Upload Failed', `Error selecting or processing image: ${err.message || 'Unknown error'}`);
+      } catch (err: any) {
+        Alert.alert('Upload Failed', `Error selecting or processing image: ${err?.message || 'Unknown error'}`);
         return null;
       }
-    } catch (err) {
-      console.error('Error uploading photo:', err);
-      Alert.alert('Upload Failed', `Failed to upload the photo: ${err.message || 'Unknown error'}`);
+    } catch (err: any) {
+      Alert.alert('Upload Failed', `Failed to upload the photo: ${err?.message || 'Unknown error'}`);
       return null;
     }
   };
@@ -146,7 +144,7 @@ export default function useProfile() {
     const photoUrl = await pickAndUploadPhoto();
     if (!photoUrl) return false;
     
-    const updatedPhotos = [...profile.photos, photoUrl];
+    const updatedPhotos = [...(profile.photos || []), photoUrl];
     return updateProfile({ photos: updatedPhotos });
   };
   
@@ -154,7 +152,7 @@ export default function useProfile() {
   const removePhoto = async (photoUrl: string): Promise<boolean> => {
     if (!profile) return false;
     
-    const updatedPhotos = profile.photos.filter(url => url !== photoUrl);
+    const updatedPhotos = (profile.photos || []).filter(url => url !== photoUrl);
     return updateProfile({ photos: updatedPhotos });
   };
   

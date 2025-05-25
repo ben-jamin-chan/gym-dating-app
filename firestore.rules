@@ -18,9 +18,7 @@ service cloud.firestore {
       return request.resource.data;
     }
     
-    function userExists(userId) {
-      return exists(/databases/$(database)/documents/users/$(userId));
-    }
+
     
     function isInvolvedInMatch(matchData) {
       return isAuthenticated() && matchData.users.hasAny([request.auth.uid]);
@@ -49,7 +47,8 @@ service cloud.firestore {
       // Only allow users to create their own swipes
       allow create: if isAuthenticated() && 
                      incomingData().userId == request.auth.uid &&
-                     userExists(incomingData().targetUserId) &&
+                     incomingData().targetUserId is string &&
+                     incomingData().targetUserId.size() > 0 &&
                      (incomingData().action == "like" || 
                       incomingData().action == "pass" || 
                       incomingData().action == "superlike");
@@ -70,10 +69,10 @@ service cloud.firestore {
       
       // Only allow match creation by the involved users (or system)
       allow create: if isAuthenticated() && 
-                     incomingData().users.hasAll([request.auth.uid]) && 
+                     incomingData().users is list &&
+                     incomingData().users.hasAny([request.auth.uid]) && 
                      incomingData().users.size() == 2 && 
-                     incomingData().status == "active" &&
-                     incomingData().initiatedBy == request.auth.uid;
+                     incomingData().status == "active";
       
       // Only allow updates if user is part of the match
       // and only allow specific fields to be updated
@@ -134,6 +133,35 @@ service cloud.firestore {
     // Typing indicators collection
     match /typingIndicators/{indicatorId} {
       allow read, write: if isAuthenticated();
+    }
+    
+    // Super Likes collection - track daily usage
+    match /superLikes/{userId} {
+      // Users can only read/write their own super like data
+      allow read, write: if isUserAuthenticated(userId);
+    }
+    
+    // Super Like usage collection - track individual super like actions
+    match /superLikeUsage/{usageId} {
+      // Allow reading for existence checks - parse the document ID to validate ownership
+      // Document ID format: {userId}_{targetUserId}_{dayKey}
+      allow read: if isAuthenticated() && 
+                   (usageId.split('_')[0] == request.auth.uid ||
+                    (resource != null && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.targetUserId == request.auth.uid)));
+      
+      // Only allow creation by authenticated users for their own usage
+      allow create: if isAuthenticated() && 
+                     incomingData().userId == request.auth.uid &&
+                     usageId.split('_')[0] == request.auth.uid;
+      
+      // Allow updates to super like data (for resets and modifications)
+      allow update: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Don't allow deletes
+      allow delete: if false;
     }
   }
 } 

@@ -224,6 +224,123 @@ exports.onSwipeAction = functions.region('asia-southeast1').firestore
   });
 
 /**
+ * Scheduled function to reset Super Likes daily at midnight UTC
+ * This ensures all users get their daily Super Likes refreshed
+ */
+exports.resetSuperLikes = functions.region('asia-southeast1').pubsub.schedule('0 0 * * *').timeZone('UTC').onRun(async (context) => {
+  try {
+    console.log('Starting daily Super Like reset...');
+    
+    const batch = db.batch();
+    const now = admin.firestore.Timestamp.now();
+    
+    // Calculate next reset time (24 hours from now)
+    const nextResetTime = admin.firestore.Timestamp.fromDate(
+      new Date(Date.now() + 24 * 60 * 60 * 1000)
+    );
+    
+    // Get all Super Like documents that need to be reset
+    const superLikesSnapshot = await db.collection('superLikes').get();
+    
+    let resetCount = 0;
+    
+    superLikesSnapshot.forEach((doc) => {
+      const data = doc.data();
+      
+      // Only reset if the reset time has passed
+      if (data.resetTime && data.resetTime.toDate() <= now.toDate()) {
+        batch.update(doc.ref, {
+          usedCount: 0,
+          resetTime: nextResetTime,
+          lastReset: now
+        });
+        resetCount++;
+      }
+    });
+    
+    // Commit all updates
+    await batch.commit();
+    
+    console.log(`Successfully reset Super Likes for ${resetCount} users`);
+    
+    // Log analytics
+    const analyticsRef = db.collection('analytics').doc('superLikes');
+    await analyticsRef.set({
+      lastResetDate: now,
+      usersReset: resetCount,
+      totalResets: admin.firestore.FieldValue.increment(1)
+    }, { merge: true });
+    
+    return { success: true, usersReset: resetCount };
+  } catch (error) {
+    console.error('Error in resetSuperLikes function:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Triggered when a Super Like is used
+ * This tracks analytics and can trigger notifications
+ */
+exports.onSuperLikeUsed = functions.region('asia-southeast1').firestore
+  .document('superLikeUsage/{usageId}')
+  .onCreate(async (snapshot, context) => {
+    const usageData = snapshot.data();
+    const { userId, targetUserId } = usageData;
+    
+    try {
+      // Update Super Like analytics
+      const analyticsRef = db.collection('analytics').doc('superLikes');
+      await analyticsRef.update({
+        totalSuperLikes: admin.firestore.FieldValue.increment(1),
+        superLikesToday: admin.firestore.FieldValue.increment(1),
+        lastSuperLikeAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      // Get target user's notification preferences
+      const targetUserDoc = await db.collection('users').doc(targetUserId).get();
+      
+      if (targetUserDoc.exists) {
+        const targetUserData = targetUserDoc.data();
+        
+        // Send notification to target user if they have FCM tokens
+        if (targetUserData.fcmTokens && targetUserData.fcmTokens.length > 0) {
+          // Get the user who sent the super like
+          const senderDoc = await db.collection('users').doc(userId).get();
+          const senderData = senderDoc.exists ? senderDoc.data() : {};
+          
+          const message = {
+            notification: {
+              title: 'You got a Super Like! ⭐️',
+              body: `${senderData.displayName || 'Someone'} super liked you! Check them out.`
+            },
+            data: {
+              type: 'superlike',
+              senderId: userId,
+              senderName: senderData.displayName || '',
+              senderPhoto: senderData.photoURL || '',
+              timestamp: usageData.timestamp.toDate().toISOString()
+            },
+            tokens: targetUserData.fcmTokens
+          };
+          
+          try {
+            const response = await messaging.sendMulticast(message);
+            console.log(`Successfully sent Super Like notification to ${response.successCount} devices for user ${targetUserId}`);
+          } catch (error) {
+            console.error(`Error sending Super Like notification to user ${targetUserId}:`, error);
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in onSuperLikeUsed function:', error);
+      return false;
+    }
+  });
+
+/**
  * Creates a database index for the swipes collection
  * This is run periodically to ensure indexes are maintained
  */
@@ -238,7 +355,12 @@ exports.createSwipeIndexes = functions.region('asia-southeast1').pubsub.schedule
     console.log(`Important indexes for the swipes collection:
     1. userId ASC, timestamp DESC - For retrieving a user's recent swipes
     2. targetUserId ASC, action ASC - For checking if someone has been liked
-    3. userId ASC, action ASC - For filtering likes/passes`);
+    3. userId ASC, action ASC - For filtering likes/passes
+    
+    Super Like indexes:
+    1. superLikes: userId ASC - For user-specific super like data
+    2. superLikeUsage: userId ASC, dayKey ASC - For daily usage tracking
+    3. superLikeUsage: targetUserId ASC, timestamp DESC - For received super likes`);
     
     return true;
   } catch (error) {

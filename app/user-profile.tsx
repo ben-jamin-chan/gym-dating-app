@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Text, ScrollView, ActivityIndicator, Image, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video } from 'expo-av';
+import { Video, ResizeMode } from 'expo-av';
 import { Image as ExpoImage } from 'expo-image';
 import { getUserProfile } from '@/utils/firebase';
 import { useAuthStore } from '@/utils/authStore';
@@ -28,6 +28,7 @@ export default function UserProfileScreen() {
   const [error, setError] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isCurrentUser, setIsCurrentUser] = useState(false);
+  const video = useRef<Video>(null);
   
   useEffect(() => {
     const fetchProfile = async () => {
@@ -311,14 +312,8 @@ export default function UserProfileScreen() {
             />
             {/* Image indicators */}
             <View style={styles.imageIndicators}>
-              {(profile.photos || profile.images || []).map((_, index) => (
-                <View 
-                  key={index} 
-                  style={[
-                    styles.imageIndicator, 
-                    index === activeImageIndex && styles.activeImageIndicator
-                  ]} 
-                />
+              {(profile.photos || profile.images || []).map((_: any, index: number) => (
+                <View key={index} style={styles.photoIndicator} />
               ))}
             </View>
             
@@ -434,7 +429,7 @@ export default function UserProfileScreen() {
           <View style={styles.interestsSection}>
             <Text style={styles.sectionTitle}>Interests</Text>
             <View style={styles.interestTags}>
-              {profile.interests.map((interest, index) => (
+              {profile.interests.map((interest: string, index: number) => (
                 <View key={index} style={styles.interestTag}>
                   <Text style={styles.interestText}>{interest}</Text>
                 </View>
@@ -513,14 +508,13 @@ export default function UserProfileScreen() {
           <View style={styles.videoSection}>
             <Text style={styles.sectionTitle}>Workout Video</Text>
             <Video
-              source={{ uri: profile.video }}
-              rate={1.0}
-              volume={1.0}
-              isMuted={false}
-              resizeMode="cover"
-              shouldPlay={false}
-              useNativeControls
+              ref={video}
               style={styles.video}
+              source={{
+                uri: profile.introVideo,
+              }}
+              useNativeControls
+              resizeMode={ResizeMode.COVER}
             />
           </View>
         )}
@@ -600,15 +594,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
-  imageIndicator: {
+  photoIndicator: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: 'rgba(255,255,255,0.5)',
-  },
-  activeImageIndicator: {
-    backgroundColor: '#FFFFFF',
-    width: 12,
   },
   imageNavButton: {
     position: 'absolute',

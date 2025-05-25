@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Message } from '@/types';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
 import { db } from './config';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -43,7 +51,7 @@ export const processPendingMessages = async () => {
         
         // Check if conversation exists first
         const conversationRef = doc(db, 'conversations', conversationId);
-        const conversationDoc = await import('firebase/firestore').then(firestore => firestore.getDoc(conversationRef));
+        const conversationDoc = await getDoc(conversationRef);
         
         if (!conversationDoc.exists()) {
           // Create the conversation if it doesn't exist
@@ -70,16 +78,14 @@ export const processPendingMessages = async () => {
         });
         
         // Update conversation with last message
-        await import('firebase/firestore').then(firestore => 
-          firestore.updateDoc(doc(db, 'conversations', conversationId), {
-            lastMessage: {
-              text: message.text,
-              timestamp: serverTimestamp(),
-              read: false
-            },
-            lastMessageTimestamp: serverTimestamp()
-          })
-        );
+        await updateDoc(doc(db, 'conversations', conversationId), {
+          lastMessage: {
+            text: message.text,
+            timestamp: serverTimestamp(),
+            read: false
+          },
+          lastMessageTimestamp: serverTimestamp()
+        });
       } catch (error) {
         console.error('Error sending queued message:', error);
         // Re-queue failed message

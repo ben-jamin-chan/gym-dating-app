@@ -9,9 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   Text,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { Camera, Image as ImageIcon, Send, Smile, AlertTriangle } from 'lucide-react-native';
 import { useChatStore } from '@/utils/chatStore';
 import ChatMessage from './ChatMessage';
@@ -25,9 +27,10 @@ type ChatRoomProps = {
 // Helper function to format date for date headers
 const formatDateHeader = (date: Date): string => {
   // Check if it's a valid date
-  if (isNaN(date.getTime())) {
-    // For invalid dates, use current date but add a note
-    return 'Unknown Date';
+  if (!date || isNaN(date.getTime())) {
+    // For invalid dates, use current date
+    const currentDate = new Date();
+    return formatDateHeader(currentDate);
   }
 
   const today = new Date();
@@ -81,6 +84,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -225,6 +229,103 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     }
   };
 
+  const handleImagePicker = async () => {
+    // Haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    Alert.alert(
+      'Select Image',
+      'Choose an option',
+      [
+        {
+          text: 'Camera',
+          onPress: () => pickImageFromCamera(),
+        },
+        {
+          text: 'Photo Library',
+          onPress: () => pickImageFromLibrary(),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const pickImageFromCamera = async () => {
+    try {
+      // Request camera permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need camera permission to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setIsUploadingMedia(true);
+        try {
+          await uploadAndSendMediaMessage(uri, conversationId, 'current-user', 'image');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      }
+    } catch (error) {
+      setIsUploadingMedia(false);
+      console.error('Error picking image from camera:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const pickImageFromLibrary = async () => {
+    try {
+      // Request library permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'We need permission to access your photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const uri = result.assets[0].uri;
+        setIsUploadingMedia(true);
+        try {
+          await uploadAndSendMediaMessage(uri, conversationId, 'current-user', 'image');
+        } finally {
+          setIsUploadingMedia(false);
+        }
+      }
+    } catch (error) {
+      setIsUploadingMedia(false);
+      console.error('Error picking image from library:', error);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
+    }
+  };
+
+  const handleCameraPicker = async () => {
+    // Haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Directly open camera
+    await pickImageFromCamera();
+  };
+
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const showAvatar = 
       index === 0 || 
@@ -309,7 +410,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             inverted={false}
             ListFooterComponent={
               typingUsers.length > 0 ? (
-                <TypingIndicator users={typingUsers} />
+                <TypingIndicator />
               ) : null
             }
             onContentSizeChange={scrollToBottom}
@@ -319,12 +420,24 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
       )}
 
       <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.attachButton}>
-          <Camera size={22} color="#6B7280" />
+        <TouchableOpacity 
+          style={styles.attachButton} 
+          onPress={handleCameraPicker}
+          disabled={isUploadingMedia}
+        >
+          <Camera size={22} color={isUploadingMedia ? "#D1D5DB" : "#6B7280"} />
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.attachButton}>
-          <ImageIcon size={22} color="#6B7280" />
+        <TouchableOpacity 
+          style={styles.attachButton} 
+          onPress={handleImagePicker}
+          disabled={isUploadingMedia}
+        >
+          {isUploadingMedia ? (
+            <ActivityIndicator size="small" color="#3B82F6" />
+          ) : (
+            <ImageIcon size={22} color="#6B7280" />
+          )}
         </TouchableOpacity>
         
         <View style={styles.textInputContainer}>

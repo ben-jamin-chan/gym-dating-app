@@ -16,13 +16,34 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db, conversationsRef, typingIndicatorsRef } from './config';
+import { db, conversationsRef, typingIndicatorsRef, handleFirestoreError } from './config';
 import { Message, Conversation, TypingIndicator } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
+// Global listener management to prevent duplicate subscriptions
+const activeListeners = new Map<string, () => void>();
+
+// Helper function to safely clean up existing listener before creating new one
+const cleanupExistingListener = (listenerId: string) => {
+  const existingUnsubscribe = activeListeners.get(listenerId);
+  if (existingUnsubscribe) {
+    console.log(`🧹 Cleaning up existing listener: ${listenerId}`);
+    try {
+      existingUnsubscribe();
+    } catch (error) {
+      console.warn(`⚠️ Error cleaning up listener ${listenerId}:`, error);
+    }
+    activeListeners.delete(listenerId);
+  }
+};
+
 // Conversation functions
-export const getConversations = async (userId: string) => {
+export const getConversations = async (userId: string, retryCount = 0): Promise<Conversation[]> => {
+  const maxRetries = 2;
+  
   try {
+    console.log(`📖 Getting conversations for ${userId} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+    
     const q = query(
       conversationsRef,
       where('participants', 'array-contains', userId),
@@ -30,12 +51,32 @@ export const getConversations = async (userId: string) => {
     );
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
+    const conversations = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Conversation[];
-  } catch (error) {
-    console.error('Error getting conversations:', error);
+    
+    console.log(`✅ Found ${conversations.length} conversations for ${userId}`);
+    return conversations;
+  } catch (error: any) {
+    console.error(`❌ Error getting conversations (attempt ${retryCount + 1}):`, error);
+    
+    // Use enhanced error handler
+    await handleFirestoreError(error, 'getConversations');
+    
+    // Retry for certain errors
+    if (error.message && 
+        (error.message.includes('INTERNAL ASSERTION FAILED') || 
+         error.message.includes('Unexpected state') ||
+         error.code === 'unavailable') && 
+        retryCount < maxRetries) {
+      
+      console.log(`🔄 Retrying getConversations (attempt ${retryCount + 1}/${maxRetries})`);
+      const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return getConversations(userId, retryCount + 1);
+    }
+    
     throw error;
   }
 };
@@ -45,7 +86,10 @@ export const subscribeToConversations = (
   callback: (conversations: Conversation[]) => void,
   errorCallback?: (error: any) => void
 ) => {
-  let unsubscribeFunc: (() => void) | null = null;
+  const listenerId = `conversations_${userId}`;
+  
+  // Clean up any existing listener first
+  cleanupExistingListener(listenerId);
 
   try {
     const q = query(
@@ -54,66 +98,122 @@ export const subscribeToConversations = (
       orderBy('lastMessageTimestamp', 'desc')
     );
     
-    // Add a small delay before setting up the subscription
-    // This helps prevent "Target ID already exists" errors
-    setTimeout(() => {
+    // Add a longer delay before setting up the subscription to prevent conflicts
+    const setupTimer = setTimeout(() => {
       try {
-        unsubscribeFunc = onSnapshot(q, (querySnapshot) => {
-          const conversations = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as Conversation[];
-          
-          callback(conversations);
-        }, (error) => {
-          console.error('Error subscribing to conversations:', error);
-          if (errorCallback) {
-            errorCallback(error);
+        console.log(`🔗 Setting up conversations subscription for ${userId}`);
+        
+        const unsubscribe = onSnapshot(q, 
+          (querySnapshot) => {
+            try {
+              const conversations = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              })) as Conversation[];
+              
+              console.log(`✅ Conversations updated: ${conversations.length} conversations for ${userId}`);
+              callback(conversations);
+            } catch (callbackError) {
+              console.error('Error in conversations subscription callback:', callbackError);
+              if (errorCallback) {
+                errorCallback(callbackError);
+              }
+            }
+          }, 
+          (error) => {
+            console.error('❌ Error in conversations subscription:', error);
+            
+            // Handle the error
+            handleFirestoreError(error, 'subscribeToConversations').catch(handleError => {
+              console.warn('Error in error handler:', handleError);
+            });
+            
+            if (errorCallback) {
+              errorCallback(error);
+            }
+            
+            // Clean up this listener from our tracking
+            activeListeners.delete(listenerId);
           }
-        });
+        );
+        
+        // Store the unsubscribe function
+        activeListeners.set(listenerId, unsubscribe);
+        console.log(`✅ Conversations subscription established for ${userId}`);
+        
       } catch (subscriptionError) {
-        console.error('Error setting up conversations subscription:', subscriptionError);
+        console.error('❌ Error setting up conversations subscription:', subscriptionError);
         if (errorCallback) {
           errorCallback(subscriptionError);
         }
       }
-    }, 1000);
+    }, 1500); // Increased delay to prevent Target ID conflicts
+    
+    // Return cleanup function
+    return () => {
+      clearTimeout(setupTimer);
+      cleanupExistingListener(listenerId);
+    };
+    
   } catch (error) {
-    console.error('Error setting up conversations subscription:', error);
+    console.error('❌ Error setting up conversations subscription:', error);
     if (errorCallback) {
       errorCallback(error);
     }
+    
+    // Return empty cleanup function
+    return () => {};
   }
-
-  // Return a function that will unsubscribe if the subscription was successful
-  return () => {
-    if (unsubscribeFunc) {
-      unsubscribeFunc();
-    }
-  };
 };
 
 // Messages functions
-export const getMessages = async (conversationId: string) => {
+export const getMessages = async (conversationId: string, retryCount = 0): Promise<Message[]> => {
+  const maxRetries = 2;
+  
   try {
+    console.log(`📖 Getting messages for conversation ${conversationId} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+    
     const q = query(
       collection(db, `conversations/${conversationId}/messages`),
       orderBy('timestamp', 'asc')
     );
     
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
+    const messages = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Message[];
-  } catch (error) {
-    console.error('Error getting messages:', error);
+    
+    console.log(`✅ Found ${messages.length} messages for conversation ${conversationId}`);
+    return messages;
+  } catch (error: any) {
+    console.error(`❌ Error getting messages (attempt ${retryCount + 1}):`, error);
+    
+    // Use enhanced error handler
+    await handleFirestoreError(error, 'getMessages');
+    
+    // Retry for certain errors
+    if (error.message && 
+        (error.message.includes('INTERNAL ASSERTION FAILED') || 
+         error.message.includes('Unexpected state') ||
+         error.code === 'unavailable') && 
+        retryCount < maxRetries) {
+      
+      console.log(`🔄 Retrying getMessages (attempt ${retryCount + 1}/${maxRetries})`);
+      const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return getMessages(conversationId, retryCount + 1);
+    }
+    
     throw error;
   }
 };
 
 export const subscribeToMessages = (conversationId: string, callback: (messages: Message[]) => void) => {
-  let unsubscribeFunc: (() => void) | null = null;
+  const listenerId = `messages_${conversationId}`;
+  
+  // Clean up any existing listener first
+  cleanupExistingListener(listenerId);
 
   try {
     const q = query(
@@ -121,38 +221,81 @@ export const subscribeToMessages = (conversationId: string, callback: (messages:
       orderBy('timestamp', 'asc')
     );
     
-    // Add a small delay before setting up the subscription
-    // This helps prevent "Target ID already exists" errors
-    setTimeout(() => {
+    // Add a longer delay before setting up the subscription to prevent conflicts
+    const setupTimer = setTimeout(() => {
       try {
-        unsubscribeFunc = onSnapshot(q, (querySnapshot) => {
-          const messages = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as Message[];
-          
-          // Store messages in AsyncStorage for offline access
-          AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages))
-            .catch(err => console.error('Error caching messages:', err));
-          
-          callback(messages);
-        }, (error) => {
-          console.error('Error subscribing to messages:', error);
-        });
+        console.log(`🔗 Setting up messages subscription for conversation ${conversationId}`);
+        
+        const unsubscribe = onSnapshot(q, 
+          (querySnapshot) => {
+            try {
+              const messages = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              })) as Message[];
+              
+              console.log(`✅ Messages updated: ${messages.length} messages for conversation ${conversationId}`);
+              
+              // Store messages in AsyncStorage for offline access
+              AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages))
+                .catch(err => console.error('Error caching messages:', err));
+              
+              callback(messages);
+            } catch (callbackError) {
+              console.error('Error in messages subscription callback:', callbackError);
+            }
+          }, 
+          (error) => {
+            console.error('❌ Error in messages subscription:', error);
+            
+            // Handle the error
+            handleFirestoreError(error, 'subscribeToMessages').catch(handleError => {
+              console.warn('Error in error handler:', handleError);
+            });
+            
+            // Clean up this listener from our tracking
+            activeListeners.delete(listenerId);
+          }
+        );
+        
+        // Store the unsubscribe function
+        activeListeners.set(listenerId, unsubscribe);
+        console.log(`✅ Messages subscription established for conversation ${conversationId}`);
+        
       } catch (subscriptionError) {
-        console.error('Error setting up messages subscription:', subscriptionError);
+        console.error('❌ Error setting up messages subscription:', subscriptionError);
       }
-    }, 1000);
+    }, 1500); // Increased delay to prevent Target ID conflicts
+    
+    // Return cleanup function
+    return () => {
+      clearTimeout(setupTimer);
+      cleanupExistingListener(listenerId);
+    };
+    
   } catch (error) {
-    console.error('Error setting up messages subscription:', error);
+    console.error('❌ Error setting up messages subscription:', error);
+    
+    // Return empty cleanup function
+    return () => {};
   }
+};
 
-  // Return a function that will unsubscribe if the subscription was successful
-  return () => {
-    if (unsubscribeFunc) {
-      unsubscribeFunc();
+// Function to clean up all active listeners (useful for app cleanup)
+export const cleanupAllListeners = () => {
+  console.log(`🧹 Cleaning up ${activeListeners.size} active Firestore listeners`);
+  
+  activeListeners.forEach((unsubscribe, listenerId) => {
+    try {
+      unsubscribe();
+      console.log(`✅ Cleaned up listener: ${listenerId}`);
+    } catch (error) {
+      console.warn(`⚠️ Error cleaning up listener ${listenerId}:`, error);
     }
-  };
+  });
+  
+  activeListeners.clear();
+  console.log('✅ All Firestore listeners cleaned up');
 };
 
 export const sendMessage = async (conversationId: string, message: Omit<Message, 'id'>) => {

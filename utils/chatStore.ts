@@ -14,7 +14,7 @@ import {
   uploadMedia
 } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
-import { mockConversations } from './mockData';
+import { mockConversations, mockMessages } from './mockData';
 
 // Define the store state
 export interface ChatState {
@@ -29,6 +29,10 @@ export interface ChatState {
   isLoadingConversations: boolean;
   isLoadingMessages: boolean;
   error: string | null;
+  
+  // Internal state for managing subscriptions and timing
+  _unsubscribers?: Record<string, () => void>;
+  _lastTypingUpdate?: Record<string, number>;
   
   // Actions
   fetchConversations: (userId: string) => void;
@@ -188,9 +192,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
             },
             isLoadingMessages: false
           }));
+        } else if (mockMessages[conversationId]) {
+          // Use mock messages if no cached data is available
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [conversationId]: mockMessages[conversationId]
+            },
+            isLoadingMessages: false
+          }));
         }
       })
-      .catch(error => console.error('Error loading cached messages:', error));
+      .catch(error => {
+        console.error('Error loading cached messages:', error);
+        // Fallback to mock messages on error
+        if (mockMessages[conversationId]) {
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [conversationId]: mockMessages[conversationId]
+            },
+            isLoadingMessages: false
+          }));
+        }
+      });
     
     // Subscribe to real-time updates
     try {
@@ -247,9 +272,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 [conversationId]: cachedMessages
               }
             }));
+          } else if (mockMessages[conversationId]) {
+            // Use mock messages if no cached data is available
+            set(state => ({
+              messages: {
+                ...state.messages,
+                [conversationId]: mockMessages[conversationId]
+              }
+            }));
           }
         })
-        .catch(err => console.error('Error loading cached messages after Firebase error:', err));
+        .catch(err => {
+          console.error('Error loading cached messages after Firebase error:', err);
+          // Fallback to mock messages on error
+          if (mockMessages[conversationId]) {
+            set(state => ({
+              messages: {
+                ...state.messages,
+                [conversationId]: mockMessages[conversationId]
+              }
+            }));
+          }
+        });
     }
   },
   
@@ -309,7 +353,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ...(state.messages[message.conversationId] || []),
           tempMessage
         ]
-      }
+      },
+      conversations: state.conversations.map(conversation => 
+        conversation.id === message.conversationId
+          ? { 
+              ...conversation, 
+              lastMessage: { 
+                text: message.text, 
+                timestamp: message.timestamp,
+                read: false 
+              }
+            }
+          : conversation
+      )
     }));
     
     // If offline, queue message for later sending
@@ -362,6 +418,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
               : msg
           ),
         },
+        conversations: state.conversations.map(conversation => 
+          conversation.id === message.conversationId
+            ? { 
+                ...conversation, 
+                lastMessage: { 
+                  text: message.text, 
+                  timestamp: message.timestamp,
+                  read: false 
+                }
+              }
+            : conversation
+        ),
         error: null // Clear any previous errors
       }));
     } catch (error: any) {
@@ -383,6 +451,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 : msg
             )
           },
+          conversations: state.conversations.map(conversation => 
+            conversation.id === message.conversationId
+              ? { 
+                  ...conversation, 
+                  lastMessage: { 
+                    text: message.text, 
+                    timestamp: message.timestamp,
+                    read: false 
+                  }
+                }
+              : conversation
+          ),
           error: null
         }));
         return;
@@ -633,7 +713,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 // Network connectivity monitoring with improved detection
 NetInfo.addEventListener(state => {
   // Treat null isInternetReachable as potentially connected to reduce false negatives
-  const isConnected = state.isConnected && (state.isInternetReachable !== false);
+  const isConnected = Boolean(state.isConnected && (state.isInternetReachable !== false));
   
   useChatStore.getState().updateNetworkStatus({
     isConnected,
