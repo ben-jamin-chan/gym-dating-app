@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getSuperLikeStatus, subscribeToSuperLikeStatus, clearSuperLikeCache } from '@/services/superLikeService';
 import { SuperLikeStatus } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
+import { Timestamp } from 'firebase/firestore';
 
 interface SuperLikeCounterProps {
   style?: any;
@@ -44,6 +45,16 @@ export default function SuperLikeCounter({
 
   const config = sizeConfig[size];
 
+  // Convert service SuperLikeStatus (with Timestamp) to component SuperLikeStatus (with Date)
+  const convertSuperLikeStatus = (serviceStatus: any): SuperLikeStatus => {
+    return {
+      ...serviceStatus,
+      resetTime: serviceStatus.resetTime instanceof Timestamp 
+        ? serviceStatus.resetTime.toDate() 
+        : serviceStatus.resetTime
+    };
+  };
+
   useEffect(() => {
     const user = getCurrentUser();
     if (!user) {
@@ -58,13 +69,15 @@ export default function SuperLikeCounter({
     const setupSubscription = async () => {
       try {
         // Initial load
-        const status = await getSuperLikeStatus(user.uid);
+        const serviceStatus = await getSuperLikeStatus(user.uid);
+        const status = convertSuperLikeStatus(serviceStatus);
         setSuperLikeStatus(status);
         onStatusChange?.(status);
         setLoading(false);
 
         // Subscribe to real-time updates
-        unsubscribe = await subscribeToSuperLikeStatus(user.uid, (status) => {
+        unsubscribe = await subscribeToSuperLikeStatus(user.uid, (serviceStatus) => {
+          const status = convertSuperLikeStatus(serviceStatus);
           setSuperLikeStatus(status);
           onStatusChange?.(status);
           

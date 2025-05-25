@@ -1,8 +1,8 @@
 import { Redirect } from 'expo-router';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuthStore } from '@/utils/authStore';
 
 export default function Index() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading } = useAuthStore();
 
   // If the auth state is still loading, don't redirect yet
   if (isLoading) {

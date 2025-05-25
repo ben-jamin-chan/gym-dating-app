@@ -163,11 +163,12 @@ export const initializeSuperLikeData = async (userId: string): Promise<SuperLike
       console.error('❌ Error initializing Super Like data:', error);
       
       // Provide better error messages
-      if (error.code === 'permission-denied') {
+      const errorObj = error as any;
+      if (errorObj?.code === 'permission-denied') {
         throw new Error('Permission denied accessing Super Like data');
-      } else if (error.code === 'unavailable') {
+      } else if (errorObj?.code === 'unavailable') {
         throw new Error('Super Like service temporarily unavailable');
-      } else if (error.message.includes('timeout')) {
+      } else if (errorObj?.message?.includes('timeout')) {
         throw new Error('Super Like initialization timed out');
       } else {
         throw new Error('Failed to initialize Super Like data');
@@ -319,14 +320,15 @@ export const useSuperLike = async (userId: string, targetUserId: string): Promis
     console.error('❌ Error using Super Like:', error);
     
     // Provide user-friendly error messages
-    if (error.code === 'permission-denied') {
+    const errorObj = error as any;
+    if (errorObj?.code === 'permission-denied') {
       throw new Error('Permission denied. Please check your authentication.');
-    } else if (error.code === 'unavailable') {
+    } else if (errorObj?.code === 'unavailable') {
       throw new Error('Service temporarily unavailable. Please try again.');
-    } else if (error.message.includes('timeout')) {
+    } else if (errorObj?.message?.includes('timeout')) {
       throw new Error('Request timed out. Please try again.');
-    } else if (error.message.includes('Super Likes remaining') || 
-               error.message.includes('already super liked')) {
+    } else if (errorObj?.message?.includes('Super Likes remaining') || 
+               errorObj?.message?.includes('already super liked')) {
       // Re-throw user-facing errors as-is
       throw error;
     } else {

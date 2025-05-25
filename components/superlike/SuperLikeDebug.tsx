@@ -26,7 +26,8 @@ export default function SuperLikeDebug() {
       console.log('Super Like Status:', result);
     } catch (error) {
       console.error('Error getting status:', error);
-      Alert.alert('Error', error.message);
+      const errorObj = error as any;
+      Alert.alert('Error', errorObj?.message || 'Unknown error');
     }
     setLoading(false);
   };
@@ -44,7 +45,8 @@ export default function SuperLikeDebug() {
       handleGetStatus();
     } catch (error) {
       console.error('Error using super like:', error);
-      Alert.alert('Error', error.message);
+      const errorObj = error as any;
+      Alert.alert('Error', errorObj?.message || 'Unknown error');
     }
     setLoading(false);
   };
@@ -60,7 +62,8 @@ export default function SuperLikeDebug() {
       handleGetStatus();
     } catch (error) {
       console.error('Error resetting:', error);
-      Alert.alert('Error', error.message);
+      const errorObj = error as any;
+      Alert.alert('Error', errorObj?.message || 'Unknown error');
     }
     setLoading(false);
   };
@@ -81,7 +84,8 @@ export default function SuperLikeDebug() {
       handleGetStatus();
     } catch (error) {
       console.error('Error initializing:', error);
-      Alert.alert('Error', error.message);
+      const errorObj = error as any;
+      Alert.alert('Error', errorObj?.message || 'Unknown error');
     }
     setLoading(false);
   };

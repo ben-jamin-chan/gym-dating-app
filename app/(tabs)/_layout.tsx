@@ -3,10 +3,8 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Chrome as Home, MessageCircle, Heart, User } from 'lucide-react-native';
-import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function TabLayout() {
-  const { user, isLoading } = useAuth();
   
   return (
     <Tabs

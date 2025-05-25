@@ -68,7 +68,8 @@ export const recordSwipe = async (
         await useSuperLike(userId, targetUserId);
       } catch (error) {
         // Re-throw the error with a more user-friendly message
-        throw new Error(`Cannot super like: ${error.message}`);
+        const errorObj = error as any;
+        throw new Error(`Cannot super like: ${errorObj?.message || 'Unknown error'}`);
       }
     }
     
@@ -94,7 +95,8 @@ export const recordSwipe = async (
       console.log('✅ Swipe recorded successfully');
     } catch (swipeError) {
       console.error('❌ Error recording swipe document:', swipeError);
-      throw new Error(`Failed to record swipe: ${swipeError.message}`);
+      const errorObj = swipeError as any;
+      throw new Error(`Failed to record swipe: ${errorObj?.message || 'Unknown error'}`);
     }
     
     // If this was a pass, we're done
@@ -130,7 +132,8 @@ export const recordSwipe = async (
         console.log('✅ Match document created successfully');
       } catch (matchError) {
         console.error('❌ Error creating match document:', matchError);
-        throw new Error(`Failed to create match: ${matchError.message}`);
+        const errorObj = matchError as any;
+        throw new Error(`Failed to create match: ${errorObj?.message || 'Unknown error'}`);
       }
       
       // Update both users' documents to include this match

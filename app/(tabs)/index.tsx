@@ -8,7 +8,8 @@ import SwipeCards from '@/components/cards/SwipeCards';
 import SuperLikeCounter from '@/components/superlike/SuperLikeCounter';
 import { UserProfile, SuperLikeStatus } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
-import { recordSwipe, getSwipedUsers, registerForPushNotifications, getPotentialMatchesWithPreferences } from '@/services/matchService';
+import { recordSwipe, getSwipedUsers, getPotentialMatchesWithPreferences } from '@/services/matchService';
+import { notificationService } from '@/services/notificationServiceSafe';
 import { getCurrentUserPreferences } from '@/services/preferencesService';
 import { getSuperLikeStatus } from '@/services/superLikeService';
 import { useLocalSearchParams } from 'expo-router';
@@ -25,7 +26,7 @@ export default function DiscoverScreen() {
   useEffect(() => {
     const registerForNotifications = async () => {
       try {
-        await registerForPushNotifications();
+        await notificationService.registerForPushNotifications();
       } catch (error) {
         console.error('Error registering for push notifications:', error);
       }
@@ -232,20 +233,23 @@ export default function DiscoverScreen() {
       }
     } catch (error) {
       console.error('Error recording super like:', error);
+      
+      // Type guard for error handling
+      const errorObj = error as any;
       console.log('🔴 [' + new Date().toISOString() + '] ERROR: Error recording super like:', {
-        code: error.code,
-        name: error.name,
-        message: error.message
+        code: errorObj?.code,
+        name: errorObj?.name,
+        message: errorObj?.message
       });
       
       // Extract user-friendly error message
       let errorMessage = 'Failed to record your response. Please try again.';
-      if (error.message?.includes('super like') || error.message?.includes('Super Like')) {
-        errorMessage = error.message;
-      } else if (error.code === 'permission-denied') {
+      if (errorObj?.message?.includes('super like') || errorObj?.message?.includes('Super Like')) {
+        errorMessage = errorObj.message;
+      } else if (errorObj?.code === 'permission-denied') {
         errorMessage = 'Permission denied. Please check your connection and try again.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (errorObj?.message) {
+        errorMessage = errorObj.message;
       }
       
       Alert.alert(

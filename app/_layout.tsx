@@ -20,6 +20,7 @@ import { refreshFirestoreConnection } from '@/utils/firebase/config';
 import { testFirebaseConfig } from '@/utils/firebase/test-config';
 import LocationTracker from '@/components/LocationTracker';
 import { getFirebaseHealthStatus } from '@/utils/firebase/config';
+import { notificationService } from '@/services/notificationServiceSafe';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -70,6 +71,16 @@ export default function RootLayout() {
           await refreshFirestoreConnection();
           hasResetFirestoreConnection.current = true;
           console.log('✅ Initial Firestore connection reset completed successfully');
+          
+          // Initialize notification service with extra safety
+          try {
+            console.log('🔔 Initializing notification service...');
+            await notificationService.initialize();
+            console.log('✅ Notification service initialized successfully');
+          } catch (notificationError) {
+            console.error('❌ Failed to initialize notification service:', notificationError);
+            console.log('ℹ️ App will continue without push notifications');
+          }
           
           // Start periodic health checks
           startPeriodicHealthChecks();
@@ -143,6 +154,7 @@ export default function RootLayout() {
     // Cleanup on unmount
     return () => {
       networkReconnectionManager.cleanup();
+      notificationService.cleanup();
     };
   }, []);
   

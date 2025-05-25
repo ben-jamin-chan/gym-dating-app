@@ -9,6 +9,7 @@ import { useAuthStore } from '@/utils/authStore';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/utils/firebase';
 import { UserPreferences } from '@/types';
+import { useNotifications } from '@/hooks/useNotifications';
 
 // List of genders for selection
 const GENDER_OPTIONS = ['Male', 'Female', 'Other', 'All'];
@@ -25,6 +26,15 @@ const TIME_OPTIONS = ['Morning', 'Afternoon', 'Evening', 'Late Night', 'Flexible
 export default function SettingsScreen() {
   const router = useRouter();
   const { user, updateProfile, logout, isLoading, error } = useAuthStore();
+  const { 
+    permissions, 
+    preferences, 
+    isLoading: notificationLoading, 
+    requestPermissions, 
+    updatePreferences, 
+    sendTestNotification,
+    getCurrentToken 
+  } = useNotifications();
   
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -640,7 +650,87 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           {renderSectionHeader('Notifications')}
           
-          {renderToggleSetting('Push Notifications', pushNotifications, setPushNotifications, <Bell size={20} color="#6B7280" />)}
+          {/* Notification Permission Status */}
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeftContent}>
+              <Bell size={20} color="#6B7280" style={styles.settingIcon} />
+              <View>
+                <Text style={styles.settingTitle}>Push Notifications</Text>
+                {getCurrentToken() === 'expo-go-local-token' && (
+                  <Text style={{ fontSize: 12, color: '#6B7280' }}>Development Mode</Text>
+                )}
+              </View>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.settingTitle, { 
+                color: permissions.granted ? '#10B981' : '#EF4444',
+                fontSize: 14 
+              }]}>
+                {permissions.granted ? 'Enabled' : 'Disabled'}
+              </Text>
+              {!permissions.granted && (
+                <TouchableOpacity 
+                  onPress={requestPermissions}
+                  style={{ marginTop: 4 }}
+                  disabled={notificationLoading}
+                >
+                  <Text style={{ color: '#FE3C72', fontSize: 12 }}>
+                    {notificationLoading ? 'Setting up...' : 'Enable'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Notification Preferences */}
+          {permissions.granted && (
+            <>
+              {renderToggleSetting(
+                'Match Notifications', 
+                preferences.matches, 
+                (value) => updatePreferences({ matches: value })
+              )}
+              
+              {renderToggleSetting(
+                'Message Notifications', 
+                preferences.messages, 
+                (value) => updatePreferences({ messages: value })
+              )}
+              
+              {renderToggleSetting(
+                'Like Notifications', 
+                preferences.likes, 
+                (value) => updatePreferences({ likes: value })
+              )}
+
+              {/* Test Notifications */}
+              <View style={styles.settingItem}>
+                <View style={styles.settingLeftContent}>
+                  <Text style={styles.settingTitle}>Test Notifications</Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity 
+                    onPress={() => sendTestNotification('match')}
+                    style={styles.testButton}
+                  >
+                    <Text style={styles.testButtonText}>Match</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => sendTestNotification('message')}
+                    style={styles.testButton}
+                  >
+                    <Text style={styles.testButtonText}>Message</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => sendTestNotification('superlike')}
+                    style={styles.testButton}
+                  >
+                    <Text style={styles.testButtonText}>Like</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          )}
           
           {renderToggleSetting('Email Notifications', emailNotifications, setEmailNotifications)}
         </View>
@@ -870,5 +960,16 @@ const styles = StyleSheet.create({
     color: '#4B5563',
     fontSize: 16,
     fontFamily: 'Inter-SemiBold',
+  },
+  testButton: {
+    backgroundColor: '#FE3C72',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontFamily: 'Inter-Medium',
   },
 }); 

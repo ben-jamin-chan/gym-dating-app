@@ -15,6 +15,7 @@
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to find nearby matches.",
         "NSCameraUsageDescription": "This app needs access to your camera to take photos for chat messages.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to share images in chat.",
+        "NSUserNotificationsUsageDescription": "This app needs to send you notifications about new matches, messages, and likes.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -34,7 +35,11 @@
         "READ_EXTERNAL_STORAGE",
         "android.permission.READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
       ],
       "package": "com.benjaminchan.boltexponativewind",
       "config": {
@@ -47,6 +52,13 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png"
+    },
+    "notification": {
+      "icon": "./assets/images/notification-icon.png",
+      "color": "#FE3C72",
+      "sounds": ["./assets/sounds/notification.wav"],
+      "androidMode": "default",
+      "androidCollapsedTitle": "#{unread_notifications} new interactions"
     },
     "plugins": [
       "expo-router",

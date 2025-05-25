@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder, Animated, Platform } from 'react-native';
 import ProfileCard from '@/components/cards/ProfileCard';
 import CardActions from '@/components/cards/CardActions';
@@ -59,7 +59,6 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
     // Check if Super Like is available before processing up swipe
     if (direction === 'up' && (!superLikeStatus?.canUse)) {
       console.log('Super Like not available, ignoring up swipe');
-      resetPosition();
       return;
     }
     
@@ -117,7 +116,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         }, 50);
       }
     });
-  }, [currentIndex, isAnimating, onSwipeLeft, onSwipeRight, onSuperLike, profiles, superLikeStatus, resetPosition]);
+  }, [currentIndex, isAnimating, onSwipeLeft, onSwipeRight, onSuperLike, profiles, superLikeStatus]);
   
   // Reset card position for cancelled swipes
   const resetPosition = useCallback(() => {
@@ -135,7 +134,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
   }, [position]);
   
   // Pan responder with improved gesture handling
-  const panResponder = useRef(
+  const panResponder = useMemo(() =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => !isAnimating,
       onMoveShouldSetPanResponder: (_, gesture) => {
@@ -172,8 +171,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
         gestureInProgress.current = false;
         resetPosition();
       }
-    })
-  ).current;
+    }), [isAnimating, handleSwipe, resetPosition, updateOverlay]);
   
   // Card rotation and transform
   const getCardStyle = () => {

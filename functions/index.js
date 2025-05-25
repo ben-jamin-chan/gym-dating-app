@@ -1,9 +1,12 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { Expo } = require('expo-server-sdk');
+
 admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+const expo = new Expo();
 
 /**
  * Cloud function that's triggered when a new match is created
@@ -47,53 +50,95 @@ exports.notifyMatch = functions.region('asia-southeast1').https.onCall(async (da
       // Find the other user in the match
       const otherUser = userData.find(u => u.id !== user.id);
       
-      // Skip if the user doesn't have FCM tokens
-      if (!user.fcmTokens || user.fcmTokens.length === 0) {
+      // Skip if the user doesn't have any push tokens
+      const hasFCMTokens = user.fcmTokens && user.fcmTokens.length > 0;
+      const hasExpoTokens = user.expoPushTokens && user.expoPushTokens.length > 0;
+      
+      if (!hasFCMTokens && !hasExpoTokens) {
+        console.log(`No push tokens found for user ${user.id}`);
         continue;
       }
       
-      // Create a personalized notification message
-      const message = {
-        notification: {
-          title: 'New Match! 🎉',
-          body: `You and ${otherUser.displayName || 'someone'} have matched! Start chatting now.`
-        },
-        data: {
-          type: 'match',
-          matchId,
-          timestamp: matchData.createdAt.toDate().toISOString(),
-          otherUserId: otherUser.id,
-          otherUserName: otherUser.displayName || '',
-          otherUserPhoto: otherUser.photoURL || ''
-        },
-        tokens: user.fcmTokens
+      const notificationData = {
+        type: 'match',
+        matchId,
+        timestamp: matchData.createdAt.toDate().toISOString(),
+        otherUserId: otherUser.id,
+        otherUserName: otherUser.displayName || '',
+        otherUserPhoto: otherUser.photoURL || ''
       };
-      
-      // Send the notification
-      try {
-        const response = await messaging.sendMulticast(message);
-        console.log(`Successfully sent notifications to ${response.successCount} devices for user ${user.id}`);
+
+      // Send FCM notifications if tokens exist
+      if (hasFCMTokens) {
+        const fcmMessage = {
+          notification: {
+            title: 'New Match! 🎉',
+            body: `You and ${otherUser.displayName || 'someone'} have matched! Start chatting now.`
+          },
+          data: notificationData,
+          tokens: user.fcmTokens
+        };
         
-        // Clean up any tokens that are no longer valid
-        if (response.failureCount > 0) {
-          const invalidTokens = [];
+        try {
+          const response = await messaging.sendMulticast(fcmMessage);
+          console.log(`Successfully sent FCM notifications to ${response.successCount} devices for user ${user.id}`);
           
-          response.responses.forEach((resp, idx) => {
-            if (!resp.success) {
-              invalidTokens.push(user.fcmTokens[idx]);
-            }
-          });
-          
-          // Remove invalid tokens from the user's document
-          if (invalidTokens.length > 0) {
-            const validTokens = user.fcmTokens.filter(token => !invalidTokens.includes(token));
-            await db.collection('users').doc(user.id).update({
-              fcmTokens: validTokens
+          // Clean up any tokens that are no longer valid
+          if (response.failureCount > 0) {
+            const invalidTokens = [];
+            
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success) {
+                invalidTokens.push(user.fcmTokens[idx]);
+              }
             });
+            
+            // Remove invalid tokens from the user's document
+            if (invalidTokens.length > 0) {
+              const validTokens = user.fcmTokens.filter(token => !invalidTokens.includes(token));
+              await db.collection('users').doc(user.id).update({
+                fcmTokens: validTokens
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error sending FCM notification to user ${user.id}:`, error);
+        }
+      }
+
+      // Send Expo notifications if tokens exist
+      if (hasExpoTokens) {
+        const expoMessages = user.expoPushTokens.map(pushToken => {
+          if (!Expo.isExpoPushToken(pushToken)) {
+            console.error(`Invalid Expo push token: ${pushToken}`);
+            return null;
+          }
+
+          return {
+            to: pushToken,
+            sound: 'default',
+            title: 'New Match! 🎉',
+            body: `You and ${otherUser.displayName || 'someone'} have matched! Start chatting now.`,
+            data: notificationData,
+            channelId: 'matches',
+          };
+        }).filter(message => message !== null);
+
+        if (expoMessages.length > 0) {
+          try {
+            const chunks = expo.chunkPushNotifications(expoMessages);
+            const tickets = [];
+
+            for (const chunk of chunks) {
+              const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+              tickets.push(...ticketChunk);
+            }
+
+            console.log(`Successfully sent Expo notifications for user ${user.id}`);
+          } catch (error) {
+            console.error(`Error sending Expo notifications to user ${user.id}:`, error);
           }
         }
-      } catch (error) {
-        console.error(`Error sending notification to user ${user.id}:`, error);
       }
     }
     
@@ -103,6 +148,171 @@ exports.notifyMatch = functions.region('asia-southeast1').https.onCall(async (da
     throw new functions.https.HttpsError('internal', error.message);
   }
 });
+
+/**
+ * Cloud function that's triggered when a new message is sent
+ * This sends push notifications to the recipient
+ */
+exports.notifyNewMessage = functions.region('asia-southeast1').firestore
+  .document('conversations/{conversationId}/messages/{messageId}')
+  .onCreate(async (snapshot, context) => {
+    const { conversationId, messageId } = context.params;
+    const messageData = snapshot.data();
+    const { sender, text, timestamp } = messageData;
+    
+    try {
+      console.log(`New message from ${sender} in conversation ${conversationId}`);
+      
+      // Get conversation details to find the recipient
+      const conversationDoc = await db.collection('conversations').doc(conversationId).get();
+      
+      if (!conversationDoc.exists) {
+        console.error('Conversation not found:', conversationId);
+        return false;
+      }
+      
+      const conversationData = conversationDoc.data();
+      const { participants } = conversationData;
+      
+      // Find the recipient (the participant who is not the sender)
+      const recipientId = participants.find(participantId => participantId !== sender);
+      
+      if (!recipientId) {
+        console.error('Recipient not found in conversation:', conversationId);
+        return false;
+      }
+      
+      // Get recipient's user data and notification preferences
+      const recipientDoc = await db.collection('users').doc(recipientId).get();
+      
+      if (!recipientDoc.exists) {
+        console.error('Recipient user not found:', recipientId);
+        return false;
+      }
+      
+      const recipientData = recipientDoc.data();
+      
+      // Get sender's user data for personalized notification
+      const senderDoc = await db.collection('users').doc(sender).get();
+      const senderData = senderDoc.exists ? senderDoc.data() : {};
+      
+      // Check if user has notification tokens
+      const hasFCMTokens = recipientData.fcmTokens && recipientData.fcmTokens.length > 0;
+      const hasExpoTokens = recipientData.expoPushTokens && recipientData.expoPushTokens.length > 0;
+      
+      if (!hasFCMTokens && !hasExpoTokens) {
+        console.log(`No push tokens found for user ${recipientId}`);
+        return false;
+      }
+      
+      const senderName = senderData.displayName || 'Someone';
+      const notificationTitle = `New message from ${senderName}`;
+      const notificationBody = text.length > 50 ? `${text.substring(0, 50)}...` : text;
+      
+      const notificationData = {
+        type: 'message',
+        conversationId,
+        messageId,
+        senderId: sender,
+        senderName,
+        senderPhoto: senderData.photoURL || '',
+        timestamp: timestamp.toDate().toISOString()
+      };
+
+      // Send FCM notifications if tokens exist
+      if (hasFCMTokens) {
+        const fcmMessage = {
+          notification: {
+            title: notificationTitle,
+            body: notificationBody
+          },
+          data: notificationData,
+          tokens: recipientData.fcmTokens,
+          android: {
+            notification: {
+              channelId: 'messages',
+              icon: 'ic_notification',
+              color: '#FF6B6B'
+            }
+          },
+          apns: {
+            payload: {
+              aps: {
+                badge: 1,
+                sound: 'default'
+              }
+            }
+          }
+        };
+        
+        try {
+          const response = await messaging.sendMulticast(fcmMessage);
+          console.log(`Successfully sent FCM message notification to ${response.successCount} devices for user ${recipientId}`);
+          
+          // Clean up invalid tokens
+          if (response.failureCount > 0) {
+            const invalidTokens = [];
+            
+            response.responses.forEach((resp, idx) => {
+              if (!resp.success) {
+                invalidTokens.push(recipientData.fcmTokens[idx]);
+              }
+            });
+            
+            if (invalidTokens.length > 0) {
+              const validTokens = recipientData.fcmTokens.filter(token => !invalidTokens.includes(token));
+              await db.collection('users').doc(recipientId).update({
+                fcmTokens: validTokens
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error sending FCM message notification to user ${recipientId}:`, error);
+        }
+      }
+
+      // Send Expo notifications if tokens exist
+      if (hasExpoTokens) {
+        const expoMessages = recipientData.expoPushTokens.map(pushToken => {
+          if (!Expo.isExpoPushToken(pushToken)) {
+            console.error(`Invalid Expo push token: ${pushToken}`);
+            return null;
+          }
+
+          return {
+            to: pushToken,
+            sound: 'default',
+            title: notificationTitle,
+            body: notificationBody,
+            data: notificationData,
+            channelId: 'messages',
+            badge: 1,
+          };
+        }).filter(message => message !== null);
+
+        if (expoMessages.length > 0) {
+          try {
+            const chunks = expo.chunkPushNotifications(expoMessages);
+            const tickets = [];
+
+            for (const chunk of chunks) {
+              const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+              tickets.push(...ticketChunk);
+            }
+
+            console.log(`Successfully sent Expo message notifications for user ${recipientId}`);
+          } catch (error) {
+            console.error(`Error sending Expo message notifications to user ${recipientId}:`, error);
+          }
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error in notifyNewMessage function:', error);
+      return false;
+    }
+  });
 
 /**
  * Triggered when a new match document is created
@@ -303,32 +513,75 @@ exports.onSuperLikeUsed = functions.region('asia-southeast1').firestore
       if (targetUserDoc.exists) {
         const targetUserData = targetUserDoc.data();
         
-        // Send notification to target user if they have FCM tokens
-        if (targetUserData.fcmTokens && targetUserData.fcmTokens.length > 0) {
+        // Check if user has notification tokens
+        const hasFCMTokens = targetUserData.fcmTokens && targetUserData.fcmTokens.length > 0;
+        const hasExpoTokens = targetUserData.expoPushTokens && targetUserData.expoPushTokens.length > 0;
+        
+        if (hasFCMTokens || hasExpoTokens) {
           // Get the user who sent the super like
           const senderDoc = await db.collection('users').doc(userId).get();
           const senderData = senderDoc.exists ? senderDoc.data() : {};
           
-          const message = {
-            notification: {
-              title: 'You got a Super Like! ⭐️',
-              body: `${senderData.displayName || 'Someone'} super liked you! Check them out.`
-            },
-            data: {
-              type: 'superlike',
-              senderId: userId,
-              senderName: senderData.displayName || '',
-              senderPhoto: senderData.photoURL || '',
-              timestamp: usageData.timestamp.toDate().toISOString()
-            },
-            tokens: targetUserData.fcmTokens
+          const notificationData = {
+            type: 'superlike',
+            senderId: userId,
+            senderName: senderData.displayName || '',
+            senderPhoto: senderData.photoURL || '',
+            timestamp: usageData.timestamp.toDate().toISOString()
           };
-          
-          try {
-            const response = await messaging.sendMulticast(message);
-            console.log(`Successfully sent Super Like notification to ${response.successCount} devices for user ${targetUserId}`);
-          } catch (error) {
-            console.error(`Error sending Super Like notification to user ${targetUserId}:`, error);
+
+          // Send FCM notifications if tokens exist
+          if (hasFCMTokens) {
+            const fcmMessage = {
+              notification: {
+                title: 'You got a Super Like! ⭐️',
+                body: `${senderData.displayName || 'Someone'} super liked you! Check them out.`
+              },
+              data: notificationData,
+              tokens: targetUserData.fcmTokens
+            };
+            
+            try {
+              const response = await messaging.sendMulticast(fcmMessage);
+              console.log(`Successfully sent FCM Super Like notification to ${response.successCount} devices for user ${targetUserId}`);
+            } catch (error) {
+              console.error(`Error sending FCM Super Like notification to user ${targetUserId}:`, error);
+            }
+          }
+
+          // Send Expo notifications if tokens exist
+          if (hasExpoTokens) {
+            const expoMessages = targetUserData.expoPushTokens.map(pushToken => {
+              if (!Expo.isExpoPushToken(pushToken)) {
+                console.error(`Invalid Expo push token: ${pushToken}`);
+                return null;
+              }
+
+              return {
+                to: pushToken,
+                sound: 'default',
+                title: 'You got a Super Like! ⭐️',
+                body: `${senderData.displayName || 'Someone'} super liked you! Check them out.`,
+                data: notificationData,
+                channelId: 'likes',
+              };
+            }).filter(message => message !== null);
+
+            if (expoMessages.length > 0) {
+              try {
+                const chunks = expo.chunkPushNotifications(expoMessages);
+                const tickets = [];
+
+                for (const chunk of chunks) {
+                  const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+                  tickets.push(...ticketChunk);
+                }
+
+                console.log(`Successfully sent Expo Super Like notifications for user ${targetUserId}`);
+              } catch (error) {
+                console.error(`Error sending Expo Super Like notifications to user ${targetUserId}:`, error);
+              }
+            }
           }
         }
       }
