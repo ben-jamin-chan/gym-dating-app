@@ -1,21 +1,43 @@
 import React from 'react';
+<<<<<<< Updated upstream
 import { View, StyleSheet, Image, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { UserProfile } from '@/types';
 import { CreditCard as Edit2, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+=======
+import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { calculateAge } from '@/utils/dateUtils';
+>>>>>>> Stashed changes
 
-type ProfileHeaderProps = {
-  user: UserProfile;
-};
+interface ProfileHeaderProps {
+  name: string;
+  displayName?: string;
+  age?: string | number;
+  dateOfBirth?: string;
+  verified?: boolean;
+  workoutFrequency?: string;
+  distance?: number;
+}
 
-export default function ProfileHeader({ user }: ProfileHeaderProps) {
-  const router = useRouter();
-  
-  const handleEditProfile = () => {
-    router.push('/edit-profile');
+export function ProfileHeader({
+  name,
+  displayName,
+  age,
+  dateOfBirth,
+  verified,
+  workoutFrequency,
+  distance
+}: ProfileHeaderProps) {
+  const getDisplayAge = () => {
+    if (dateOfBirth) {
+      return calculateAge(dateOfBirth);
+    }
+    return age || 'N/A';
   };
   
   return (
+<<<<<<< Updated upstream
     <View style={styles.container}>
       <View style={styles.avatarContainer}>
         <Image 
@@ -48,140 +70,90 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{user.workoutFrequency}</Text>
             <Text style={styles.statLabel}>Workout</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.gymCheckIns}</Text>
-            <Text style={styles.statLabel}>Check-ins</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.interests.length}</Text>
-            <Text style={styles.statLabel}>Interests</Text>
-          </View>
+=======
+    <>
+      {/* Header Info */}
+      <View style={styles.headerInfo}>
+        <View style={styles.nameAgeContainer}>
+          <Text style={styles.name}>{name || displayName}</Text>
+          <Text style={styles.age}>{getDisplayAge()}</Text>
         </View>
-        
-        {/* User interests tags */}
-        {user.interests && user.interests.length > 0 && (
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.interestsContainer}
-          >
-            {user.interests.map((interest, index) => (
-              <View key={`interest-${index}`} style={styles.interestTag}>
-                <Text style={styles.interestText}>{interest}</Text>
-              </View>
-            ))}
-          </ScrollView>
+        {verified && (
+          <View style={styles.verifiedBadge}>
+            <Ionicons name="checkmark-circle" size={16} color="white" />
+            <Text style={styles.verifiedText}>Verified</Text>
+>>>>>>> Stashed changes
+          </View>
         )}
       </View>
-    </View>
+      
+      {/* Location and activity */}
+      <View style={styles.locationContainer}>
+        <View style={styles.infoItem}>
+          <Ionicons name="barbell-outline" size={18} color="#9CA3AF" />
+          <Text style={styles.infoText}>{workoutFrequency || 'Not specified'}</Text>
+        </View>
+        
+        <View style={styles.infoItem}>
+          <Ionicons name="location-outline" size={18} color="#9CA3AF" />
+          <Text style={styles.infoText}>
+            {distance ? `${distance} miles away` : 'Location not available'}
+        </Text>
+        </View>
+      </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-  },
-  editButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#3B82F6',
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  infoContainer: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  name: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 22,
-    color: '#111827',
-    marginRight: 8,
-  },
-  ageGender: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 16,
-    color: '#4B5563',
-    marginBottom: 8,
-  },
-  bio: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  statsContainer: {
+  headerInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  statItem: {
-    flex: 1,
     alignItems: 'center',
+    marginBottom: 12,
   },
-  statValue: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 20,
-    color: '#111827',
+  nameAgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
-  statLabel: {
-    fontFamily: 'Inter-Regular',
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginRight: 8,
+  },
+  age: {
+    fontSize: 22,
+    color: '#4B5563',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  verifiedText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+    gap: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  infoText: {
     fontSize: 14,
     color: '#6B7280',
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E7EB',
-  },
-  interestsContainer: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-  },
-  interestTag: {
-    backgroundColor: '#EBF5FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginHorizontal: 4,
-  },
-  interestText: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    marginLeft: 8,
   },
 });

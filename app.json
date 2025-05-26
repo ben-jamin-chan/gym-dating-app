@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.benjaminchan.bolt-expo-nativewind",
+      "bundleIdentifier": "com.benjaminchan.boltexponativewind",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to find nearby matches.",
         "NSAppTransportSecurity": {
@@ -63,6 +63,15 @@
         "projectId": "2d488a1a-eb72-4455-b6b1-7c5c29c8ddcd"
       }
     },
-    "owner": "benjaminchan"
+    "owner": "benjaminchan",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/2d488a1a-eb72-4455-b6b1-7c5c29c8ddcd"
+    },
+    "developmentClient": {
+      "silentLaunch": false
+    }
   }
 }

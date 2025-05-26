@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
+<<<<<<< Updated upstream
 import { View, StyleSheet, Text, ScrollView, ActivityIndicator, Image, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
+=======
+import { View, StyleSheet, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+>>>>>>> Stashed changes
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+<<<<<<< Updated upstream
 import { LinearGradient } from 'expo-linear-gradient';
 import { Video } from 'expo-av';
 import { Image as ExpoImage } from 'expo-image';
@@ -12,11 +17,16 @@ import { useAuthStore } from '@/utils/authStore';
 import { Heart, X, Star, Info } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { recordSwipe } from '@/services/matchService';
+=======
+import { getUserProfile } from '@/utils/firebase';
+import { useAuthStore } from '@/utils/authStore';
+>>>>>>> Stashed changes
 
-// Default profile image URL as a fallback
-const DEFAULT_PROFILE_IMAGE = 'https://randomuser.me/api/portraits/lego/1.jpg';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+// Import the refactored components
+import { ProfileImageGallery } from '@/components/profile/ProfileImageGallery';
+import { ProfileHeader } from '@/components/profile/ProfileHeader';
+import { ProfileDetails } from '@/components/profile/ProfileDetails';
+import { ProfileActions } from '@/components/profile/ProfileActions';
 
 export default function UserProfileScreen() {
   const router = useRouter();
@@ -25,7 +35,6 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isCurrentUser, setIsCurrentUser] = useState(false);
   
   useEffect(() => {
@@ -96,172 +105,11 @@ export default function UserProfileScreen() {
     
     fetchProfile();
   }, [userId, user]);
-  
-  const handleNextImage = () => {
-    const photos = profile?.photos || profile?.images || [];
-    if (photos.length > 0) {
-      setActiveImageIndex((prev) => (prev + 1) % photos.length);
-    }
-  };
-  
-  const handlePreviousImage = () => {
-    const photos = profile?.photos || profile?.images || [];
-    if (photos.length > 0) {
-      setActiveImageIndex((prev) => (prev - 1 + photos.length) % photos.length);
-    }
-  };
 
   const handleGoBack = () => {
     router.back();
   };
-  
-  const handleLike = async () => {
-    // Implement like functionality
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-    
-    try {
-      if (user?.uid && profile?.id) {
-        console.log('Liked profile:', profile.id);
-        
-        // Record the like in Firebase
-        const matchResult = await recordSwipe(user.uid, profile.id, 'like');
-        
-        // If a match occurred, show a notification
-        if (matchResult) {
-          Alert.alert(
-            'New Match! 🎉',
-            'You have a new match! Start chatting now.',
-            [
-              { text: 'Later', style: 'cancel' },
-              { 
-                text: 'Chat Now', 
-                onPress: () => {
-                  router.push(`/chat/${matchResult.id}`);
-                }
-              }
-            ]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error recording like:', error);
-    }
-    
-    // Add a small delay before navigation for better UX
-    setTimeout(() => {
-      // Navigate back to discover tab with a refresh parameter, using replace instead of push
-      router.replace({
-        pathname: '/(tabs)',
-        params: { refresh: Date.now() }
-      });
-    }, 300);
-  };
-  
-  const handleSuperLike = async () => {
-    // Implement superlike functionality
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    }
-    
-    try {
-      if (user?.uid && profile?.id) {
-        console.log('Superliked profile:', profile.id);
-        
-        // Record the superlike in Firebase
-        const matchResult = await recordSwipe(user.uid, profile.id, 'superlike');
-        
-        // If a match occurred, show a notification
-        if (matchResult) {
-          Alert.alert(
-            'Super Match! ⭐️',
-            'You have a new match! They know you super liked them!',
-            [
-              { text: 'Later', style: 'cancel' },
-              { 
-                text: 'Chat Now', 
-                onPress: () => {
-                  router.push(`/chat/${matchResult.id}`);
-                }
-              }
-            ]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('Error recording superlike:', error);
-    }
-    
-    // Add a small delay before navigation for better UX
-    setTimeout(() => {
-      // Navigate back to discover tab with a refresh parameter, using replace instead of push
-      router.replace({
-        pathname: '/(tabs)',
-        params: { refresh: Date.now() }
-      });
-    }, 300);
-  };
-  
-  const handleDislike = async () => {
-    // Implement dislike functionality
-    if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    
-    try {
-      if (user?.uid && profile?.id) {
-        console.log('Disliked profile:', profile.id);
-        
-        // Record the pass in Firebase
-        await recordSwipe(user.uid, profile.id, 'pass');
-      }
-    } catch (error) {
-      console.error('Error recording dislike:', error);
-    }
-    
-    // Add a small delay before navigation for better UX
-    setTimeout(() => {
-      // Navigate back to discover tab with a refresh parameter, using replace instead of push
-      router.replace({
-        pathname: '/(tabs)',
-        params: { refresh: Date.now() }
-      });
-    }, 300);
-  };
-  
-  const handleMessage = () => {
-    // Navigate to chat with this user
-    if (profile?.id) {
-      router.push(`/chat/${profile.id}`);
-    }
-  };
-  
-  // Function to get a safe image URL with fallback
-  const getSafeImageUrl = (index = 0) => {
-    // Get the photos array (or empty array if none)
-    const photos = profile?.photos || profile?.images || [];
-    
-    if (photos.length > 0 && photos[index] && typeof photos[index] === 'string') {
-      if (photos[index].startsWith('http')) {
-        console.log(`Using image at index ${index}:`, photos[index]);
-        return photos[index];
-      } else {
-        console.log(`Invalid image URL at index ${index}:`, photos[index]);
-      }
-    } else {
-      console.log('No valid photos array found or index out of bounds:', {
-        photosLength: photos.length,
-        requestedIndex: index,
-        profile: profile ? 'Profile exists' : 'No profile'
-      });
-    }
-    
-    // Fallback to default if no valid image
-    console.log('Using default profile image');
-    return DEFAULT_PROFILE_IMAGE;
-  };
-  
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -274,7 +122,7 @@ export default function UserProfileScreen() {
       </SafeAreaView>
     );
   }
-  
+
   if (error || !profile) {
     return (
       <SafeAreaView style={styles.container}>
@@ -292,12 +140,13 @@ export default function UserProfileScreen() {
       </SafeAreaView>
     );
   }
-  
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="light" />
       
+<<<<<<< Updated upstream
       {/* Image Gallery */}
       <View style={styles.imageContainer}>
         {(profile?.photos?.length > 0) || (profile?.images?.length > 0) ? (
@@ -353,14 +202,32 @@ export default function UserProfileScreen() {
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.7)']}
           style={styles.overlay}
+=======
+      {/* Image Gallery Component */}
+      <ProfileImageGallery 
+        photos={profile.photos || []}
+        onBackPress={handleGoBack}
+      />
+      
+      {/* Profile Content */}
+      <View style={styles.detailsContainer}>
+        {/* Profile Header Component */}
+        <ProfileHeader
+          name={profile.name}
+          displayName={profile.displayName}
+          age={profile.age}
+          dateOfBirth={profile.dateOfBirth}
+          verified={profile.verified}
+          workoutFrequency={profile.workoutFrequency}
+          distance={profile.distance}
+>>>>>>> Stashed changes
         />
         
-        {/* Back button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-          <Ionicons name="chevron-down" size={28} color="white" />
-        </TouchableOpacity>
+        {/* Profile Details Component */}
+        <ProfileDetails profile={profile} />
       </View>
       
+<<<<<<< Updated upstream
       {/* Profile details */}
       <ScrollView style={styles.detailsContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.headerInfo}>
@@ -551,6 +418,14 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </View>
       )}
+=======
+      {/* Action Buttons Component */}
+      <ProfileActions
+        currentUserId={user?.uid || ''}
+        targetUserId={profile.id || ''}
+        isCurrentUser={isCurrentUser}
+      />
+>>>>>>> Stashed changes
     </View>
   );
 }
@@ -560,6 +435,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+<<<<<<< Updated upstream
   imageContainer: {
     height: SCREEN_HEIGHT * 0.55,
     position: 'relative',
@@ -624,6 +500,8 @@ const styles = StyleSheet.create({
   rightNavButton: {
     right: 10,
   },
+=======
+>>>>>>> Stashed changes
   detailsContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -632,186 +510,6 @@ const styles = StyleSheet.create({
     marginTop: -20,
     paddingTop: 20,
     paddingHorizontal: 20,
-  },
-  headerInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  nameAgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginRight: 8,
-  },
-  age: {
-    fontSize: 22,
-    color: '#4B5563',
-  },
-  verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3B82F6',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  verifiedText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  locationContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 20,
-    gap: 12,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginLeft: 8,
-  },
-  bioSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  bioText: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 24,
-  },
-  goalsSection: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  goalsList: {
-    paddingHorizontal: 16,
-  },
-  goalItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  goalText: {
-    marginLeft: 8,
-    fontSize: 16,
-    color: '#374151',
-  },
-  interestsSection: {
-    marginBottom: 20,
-  },
-  interestTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  interestTag: {
-    backgroundColor: '#EBF5FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  interestText: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  statsSection: {
-    marginBottom: 20,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 16,
-  },
-  statItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  videoSection: {
-    marginBottom: 20,
-  },
-  video: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-  },
-  actionButtons: {
-    position: 'absolute',
-    bottom: 20,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  actionButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    ...Platform.select({
-      web: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-      }
-    }),
-  },
-  nopeButton: {
-    borderWidth: 2,
-    borderColor: '#F87171',
-  },
-  likeButton: {
-    borderWidth: 2,
-    borderColor: '#FF5864',
-  },
-  superlikeButton: {
-    borderWidth: 2,
-    borderColor: '#60A5FA',
   },
   loadingContainer: {
     flex: 1,
@@ -848,29 +546,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-  },
-  noPhotoContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#E5E7EB',
-  },
-  noPhotoText: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 12,
-  },
-  defaultProfileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 12,
-  },
-  bodyStatsSection: {
-    marginBottom: 24,
-  },
-  gymSection: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
   },
 }); 
