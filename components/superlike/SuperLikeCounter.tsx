@@ -140,7 +140,7 @@ export default function SuperLikeCounter({
     if (ratio <= 0) return '#999';
     if (ratio <= 0.33) return '#FF5864';
     if (ratio <= 0.66) return '#FFA500';
-    return '#4CAF50';
+    return '#60A5FA'; // Changed from green to blue to match superlike action button
   };
 
   if (loading) {

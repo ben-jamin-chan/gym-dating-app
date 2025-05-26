@@ -194,3 +194,7 @@ Include proper error handling and offline support considerations. The solution s
 - In the onboarding/registration page, the keyboard is hiding all the input fields * DONE *
 - Removed premature onboarding/user registration 
 - 
+
+Can we now update the superlike icon and count on the top right corner of the discover page from green to match the superlike action button which is like a blue?
+
+Also, can you please check if we should optimize and refactor any part of the codes that are having too many lines?
