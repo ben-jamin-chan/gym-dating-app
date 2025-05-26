@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder, Animated, Platform } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import ProfileCard from '@/components/cards/ProfileCard';
 import CardActions from '@/components/cards/CardActions';
 import { UserProfile, SuperLikeStatus } from '@/types';
@@ -58,7 +59,12 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
     
     // Check if Super Like is available before processing up swipe
     if (direction === 'up' && (!superLikeStatus?.canUse)) {
-      console.log('Super Like not available, ignoring up swipe');
+      console.log('Super Like not available, resetting card position');
+      // Provide haptic feedback for failed superlike attempt
+      if (Platform.OS !== 'web') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+      resetPosition();
       return;
     }
     
@@ -161,7 +167,7 @@ export default function SwipeCards({ profiles, onSwipeLeft, onSwipeRight, onSupe
           handleSwipe('right');
         } else if (swipeLeft) {
           handleSwipe('left');
-        } else if (swipeUp) {
+        } else if (swipeUp && superLikeStatus?.canUse) {
           handleSwipe('up');
         } else {
           resetPosition();

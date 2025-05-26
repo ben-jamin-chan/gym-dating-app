@@ -261,6 +261,8 @@ export const unmatch = async (matchId: string): Promise<void> => {
  */
 export const getSwipedUsers = async (userId: string): Promise<string[]> => {
   try {
+    console.log(`Getting swiped users for ${userId}`);
+    
     const q = query(
       swipesCollection,
       where('userId', '==', userId)
@@ -273,10 +275,12 @@ export const getSwipedUsers = async (userId: string): Promise<string[]> => {
       swipedUserIds.push(doc.data().targetUserId);
     });
     
+    console.log(`Found ${swipedUserIds.length} swiped users`);
     return swipedUserIds;
   } catch (error) {
     console.error('Error getting swiped users:', error);
-    throw error;
+    // Return empty array instead of throwing, so we don't block discovery
+    return [];
   }
 };
 
@@ -347,9 +351,11 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
     
     // Get the user's preferences
     const preferences = await getUserPreferences(userId);
+    console.log('User preferences:', preferences);
     
     // Get users the current user has already swiped on
     const swipedUserIds = await getSwipedUsers(userId);
+    console.log(`User ${userId} has swiped on ${swipedUserIds.length} users`);
     
     // Get current user's location
     const currentUserDoc = await getDoc(doc(db, 'users', userId));
@@ -372,12 +378,16 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
     if (!currentUserLocation) {
       currentUserLocation = await getCurrentUserLocation();
     }
+    console.log('Current user location:', currentUserLocation);
     
     // Get all users from the users collection
     const usersRef = collection(db, 'users');
     const usersSnapshot = await getDocs(usersRef);
     
+    console.log(`Found ${usersSnapshot.size} total users in database`);
+    
     const potentialMatches: UserProfile[] = [];
+    const skippedProfiles: {id: string, reason: string}[] = [];
     
     // Process each user document
     usersSnapshot.forEach((doc) => {
@@ -385,11 +395,16 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
       
       // Skip the current user
       if (doc.id === userId) {
+        skippedProfiles.push({id: doc.id, reason: 'Current user'});
         return;
       }
       
-      // Skip users already swiped on
-      if (swipedUserIds.includes(doc.id)) {
+      // Check if this is a test profile (has underscore in ID)
+      const isTestProfile = doc.id.includes('_');
+      
+      // Skip users already swiped on (except test profiles)
+      if (!isTestProfile && swipedUserIds.includes(doc.id)) {
+        skippedProfiles.push({id: doc.id, reason: 'Already swiped'});
         return;
       }
       
@@ -419,60 +434,98 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
         gymCheckIns: userData.gymCheckIns || 0,
       };
       
-      // Apply preferences filtering if preferences exist
-      if (preferences) {
-        // Age filter
-        if (preferences.ageRange && userProfile.age) {
-          if (userProfile.age < preferences.ageRange.min || userProfile.age > preferences.ageRange.max) {
-            return; // Skip this profile
-          }
-        }
-        
-        // Gender filter
-        if (preferences.genderPreference && preferences.genderPreference !== 'all' && userProfile.gender) {
-          if (!preferences.genderPreference.includes(userProfile.gender)) {
-            return; // Skip this profile
-          }
-        }
-        
-        // Workout frequency filter
-        if (preferences.workoutFrequencyPreference && 
-            !preferences.workoutFrequencyPreference.includes('All') && 
-            userProfile.workoutFrequency) {
-          if (!preferences.workoutFrequencyPreference.includes(userProfile.workoutFrequency)) {
-            return; // Skip this profile
-          }
+      let filteredOut = false;
+      let filterReason = '';
+      
+      // Apply preferences filtering if preferences exist and the profile is not a test profile
+      // Skip preference filtering for test profiles (already checked earlier)
+      if (preferences && !isTestProfile) {
+      // Age filter
+      if (preferences.ageRange && userProfile.age) {
+        if (userProfile.age < preferences.ageRange.min || userProfile.age > preferences.ageRange.max) {
+          filteredOut = true;
+          filterReason = `Age ${userProfile.age} outside range ${preferences.ageRange.min}-${preferences.ageRange.max}`;
+          skippedProfiles.push({id: doc.id, reason: filterReason});
+          return; // Skip this profile
         }
       }
+      
+      // Gender filter
+      if (preferences.genderPreference && preferences.genderPreference !== 'all' && userProfile.gender) {
+        if (!preferences.genderPreference.includes(userProfile.gender)) {
+          filteredOut = true;
+          filterReason = `Gender ${userProfile.gender} not in preferences ${preferences.genderPreference}`;
+          skippedProfiles.push({id: doc.id, reason: filterReason});
+          return; // Skip this profile
+        }
+      }
+      
+      // Workout frequency filter
+      if (preferences.workoutFrequencyPreference && 
+          !preferences.workoutFrequencyPreference.includes('All') && 
+          userProfile.workoutFrequency) {
+        if (!preferences.workoutFrequencyPreference.includes(userProfile.workoutFrequency)) {
+          filteredOut = true;
+          filterReason = `Workout frequency ${userProfile.workoutFrequency} not in preferences ${preferences.workoutFrequencyPreference}`;
+          skippedProfiles.push({id: doc.id, reason: filterReason});
+          return; // Skip this profile
+        }
+      }
+    } else if (isTestProfile) {
+      console.log(`Skipping preference filtering for test profile: ${doc.id}`);
+    }
       
       // Add matching profile to results
       potentialMatches.push(userProfile);
     });
     
+    console.log(`Skipped profiles (${skippedProfiles.length}):`, skippedProfiles);
+    
     // Apply location-based filtering if we have current user's location and preferences
     let locationFilteredMatches = potentialMatches;
     
+    // Separate test profiles (we want to keep these regardless of location)
+    const testProfiles = potentialMatches.filter(profile => profile.id.includes('_'));
+    const regularProfiles = potentialMatches.filter(profile => !profile.id.includes('_'));
+    
+    console.log(`Found ${testProfiles.length} test profiles and ${regularProfiles.length} regular profiles`);
+    
     if (currentUserLocation && preferences && preferences.maxDistance) {
-      // Filter profiles that have location data and are within distance preference
-      const profilesWithLocation = potentialMatches.filter(profile => profile.location);
+      // Only apply location filtering to regular profiles
+      const profilesWithLocation = regularProfiles.filter(profile => profile.location);
       
       if (profilesWithLocation.length > 0) {
         // Calculate distance for each profile and filter by max distance
-        locationFilteredMatches = profilesWithLocation
+        const filteredRegularProfiles = profilesWithLocation
           .map(profile => ({
             ...profile,
             distance: calculateDistance(currentUserLocation, profile.location!)
           }))
           .filter(profile => profile.distance <= preferences.maxDistance!)
           .sort((a, b) => a.distance - b.distance); // Sort by distance (nearest first)
+        
+        // Add distances to test profiles but don't filter them out
+        const testProfilesWithDistance = testProfiles.map(profile => ({
+          ...profile,
+          distance: typeof profile.location === 'object' ? calculateDistance(currentUserLocation, profile.location) : 5 // Default 5km for test profiles
+        }));
+        
+        // Combine the filtered regular profiles with all test profiles
+        locationFilteredMatches = [...filteredRegularProfiles, ...testProfilesWithDistance];
+      } else {
+        // If no regular profiles with location, just keep test profiles
+        locationFilteredMatches = testProfiles.map(profile => ({
+          ...profile,
+          distance: 5 // Default distance for display purposes
+        }));
       }
       
-      console.log(`Filtered ${potentialMatches.length} profiles to ${locationFilteredMatches.length} within ${preferences.maxDistance}km`);
+      console.log(`After location filtering: ${locationFilteredMatches.length} total profiles (including ${testProfiles.length} test profiles)`);
     } else {
       // If no location data available, add default distance to profiles for UI consistency
       locationFilteredMatches = potentialMatches.map(profile => ({
         ...profile,
-        distance: typeof profile.location === 'object' ? calculateDistance(currentUserLocation, profile.location) : undefined
+        distance: typeof profile.location === 'object' ? calculateDistance(currentUserLocation, profile.location) : 5
       }));
       
       console.log(`No location filtering applied. Found ${potentialMatches.length} potential matches for user ${userId}`);

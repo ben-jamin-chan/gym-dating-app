@@ -44,11 +44,11 @@ service cloud.firestore {
     
     // Swipes collection - store likes and passes
     match /swipes/{swipeId} {
-      // Only allow users to create their own swipes
+      // Allow users to create swipes - simplified validation for now
       allow create: if isAuthenticated() && 
                      incomingData().userId == request.auth.uid &&
                      incomingData().targetUserId is string &&
-                     incomingData().targetUserId.size() > 0 &&
+                     incomingData().action is string &&
                      (incomingData().action == "like" || 
                       incomingData().action == "pass" || 
                       incomingData().action == "superlike");

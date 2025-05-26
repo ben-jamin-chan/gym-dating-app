@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { StatusBar } from 'expo-status-bar';
 import { Stack, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { saveUserProfile } from '@/utils/firebase';
+import { saveUserProfile, getCurrentUser } from '@/utils/firebase';
 import { UserProfile } from '@/types';
 
 // Mock profiles to be created in Firestore
@@ -170,6 +170,8 @@ const allProfiles = [...mockProfiles, ...additionalProfiles];
 export default function SeedProfilesScreen() {
   const router = useRouter();
   const [isSeeding, setIsSeeding] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isResettingAll, setIsResettingAll] = useState(false);
   const [results, setResults] = useState<{id: string, success: boolean, message: string}[]>([]);
   const [allCompleted, setAllCompleted] = useState(false);
 
@@ -179,26 +181,36 @@ export default function SeedProfilesScreen() {
     setAllCompleted(false);
     
     const seedResults = [];
+    const timestamp = Date.now(); // Add timestamp to make IDs unique
+    const currentUser = getCurrentUser();
+    const userId = currentUser ? currentUser.uid : 'nouser';
     
     for (const profile of allProfiles) {
       try {
         // Add a small delay to prevent rate limiting
         await new Promise(resolve => setTimeout(resolve, 300));
         
+        // Create a unique ID with timestamp and current user ID to avoid conflicts
+        const uniqueId = `test_${userId.slice(0,5)}_${profile.id}_${timestamp}`;
+        
         // Store the user profile in Firestore
-        await saveUserProfile(profile.id, {
+        await saveUserProfile(uniqueId, {
           ...profile,
+          id: uniqueId, // Update the ID field as well
           // Convert images array to photos field for compatibility
           photos: profile.images,
           // Also keep images array for backward compatibility
           images: profile.images,
           // Add photoURL for single image use
           photoURL: profile.images?.[0] || '',
-          verified: true
+          verified: true,
+          // Add timestamp to ensure it's seen as a new profile
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
         
         seedResults.push({
-          id: profile.id,
+          id: uniqueId,
           success: true,
           message: `Profile for ${profile.displayName} created successfully`
         });
@@ -225,6 +237,95 @@ export default function SeedProfilesScreen() {
     );
   };
 
+  // Function to reset swipes for the current user
+  const handleResetSwipes = async () => {
+    try {
+      setIsResetting(true);
+      
+      // Get the current user
+      const user = getCurrentUser();
+      if (!user) {
+        Alert.alert('Error', 'No user is logged in');
+        setIsResetting(false);
+        return;
+      }
+      
+      // Import necessary Firebase functions
+      const { collection, query, where, getDocs, deleteDoc, doc } = require('firebase/firestore');
+      const { db } = require('@/utils/firebase');
+      
+      // Get all swipes by the current user
+      const swipesRef = collection(db, 'swipes');
+      const q = query(swipesRef, where('userId', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      
+      // Delete each swipe document
+      const deletePromises = [];
+      querySnapshot.forEach((document) => {
+        deletePromises.push(deleteDoc(doc(db, 'swipes', document.id)));
+      });
+      
+      await Promise.all(deletePromises);
+      
+      setIsResetting(false);
+      
+      Alert.alert(
+        'Swipes Reset',
+        `Successfully reset ${querySnapshot.size} swipes.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error resetting swipes:', error);
+      setIsResetting(false);
+      
+      Alert.alert(
+        'Error',
+        `Failed to reset swipes: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Function to reset ALL swipes in the database
+  const handleResetAllSwipes = async () => {
+    try {
+      setIsResettingAll(true);
+      
+      // Import necessary Firebase functions
+      const { collection, getDocs, deleteDoc, doc } = require('firebase/firestore');
+      const { db } = require('@/utils/firebase');
+      
+      // Get ALL swipes from the swipes collection
+      const swipesRef = collection(db, 'swipes');
+      const querySnapshot = await getDocs(swipesRef);
+      
+      // Delete each swipe document
+      const deletePromises = [];
+      querySnapshot.forEach((document) => {
+        deletePromises.push(deleteDoc(doc(db, 'swipes', document.id)));
+      });
+      
+      await Promise.all(deletePromises);
+      
+      setIsResettingAll(false);
+      
+      Alert.alert(
+        'All Swipes Reset',
+        `Successfully reset ${querySnapshot.size} swipes for all users.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error resetting all swipes:', error);
+      setIsResettingAll(false);
+      
+      Alert.alert(
+        'Error',
+        `Failed to reset all swipes: ${error.message}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ 
@@ -248,13 +349,35 @@ export default function SeedProfilesScreen() {
           onPress={handleSeedProfiles}
           disabled={isSeeding}
         >
-          {isSeeding ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.seedButtonText}>
-              {allCompleted ? 'Seed Profiles Again' : 'Seed Mock Profiles'}
-            </Text>
-          )}
+          <Text style={styles.seedButtonText}>
+            {isSeeding ? 'Creating Profiles...' : 'Create Test Profiles'}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[
+            styles.resetButton, 
+            isResetting && styles.seedButtonDisabled
+          ]}
+          onPress={handleResetSwipes}
+          disabled={isResetting}
+        >
+          <Text style={styles.seedButtonText}>
+            {isResetting ? 'Resetting My Swipes...' : 'Reset My Swipes'}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[
+            styles.resetAllButton, 
+            isResettingAll && styles.seedButtonDisabled
+          ]}
+          onPress={handleResetAllSwipes}
+          disabled={isResettingAll}
+        >
+          <Text style={styles.seedButtonText}>
+            {isResettingAll ? 'Resetting All Swipes...' : 'Reset ALL Swipes (Testing)'}
+          </Text>
         </TouchableOpacity>
         
         {results.length > 0 && (
@@ -368,5 +491,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
+  },
+  resetButton: {
+    backgroundColor: '#3B82F6',
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  resetAllButton: {
+    backgroundColor: '#EC4899', // Different color to indicate this is a "danger" action
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
 }); 

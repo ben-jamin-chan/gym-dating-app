@@ -66,6 +66,10 @@ export default function DiscoverScreen() {
     try {
       console.log('Fetching potential matches for user:', currentUserId);
       
+      // Get users that have been swiped on
+      const swipedUsers = await getSwipedUsers(currentUserId);
+      console.log(`User has swiped on ${swipedUsers.length} profiles:`, swipedUsers);
+      
       // Get real profiles from Firestore using our updated function
       const matchedProfiles = await getPotentialMatchesWithPreferences(currentUserId);
       
@@ -77,6 +81,7 @@ export default function DiscoverScreen() {
         setNoMoreProfiles(true);
       } else {
         console.log('Profiles found, updating state');
+        console.log('Profile IDs:', matchedProfiles.map(p => p.id));
         setProfiles(matchedProfiles);
         setNoMoreProfiles(false);
       }
@@ -328,6 +333,7 @@ export default function DiscoverScreen() {
           style={styles.superLikeCounter}
         />
       </View>
+      
       <View style={styles.cardsContainer}>
         <SwipeCards
           profiles={profiles}
