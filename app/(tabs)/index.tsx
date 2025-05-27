@@ -8,6 +8,7 @@ import SwipeCards from '@/components/cards/SwipeCards';
 import SuperLikeCounter from '@/components/superlike/SuperLikeCounter';
 import { UserProfile, SuperLikeStatus } from '@/types';
 import { getCurrentUser } from '@/utils/firebase';
+import { useAuthStore } from '@/utils/authStore';
 import { recordSwipe, getSwipedUsers, getPotentialMatchesWithPreferences } from '@/services/matchService';
 import { notificationService } from '@/services/notificationServiceSafe';
 import { getCurrentUserPreferences } from '@/services/preferencesService';
@@ -18,9 +19,12 @@ export default function DiscoverScreen() {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [noMoreProfiles, setNoMoreProfiles] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [superLikeStatus, setSuperLikeStatus] = useState<SuperLikeStatus | null>(null);
   const { refresh } = useLocalSearchParams();
+  
+  // Use auth store for proper authentication state management
+  const { user, isLoading: authLoading, isInitialized } = useAuthStore();
+  const currentUserId = user?.uid || null;
 
   // Register for push notifications when the screen loads
   useEffect(() => {
@@ -35,18 +39,28 @@ export default function DiscoverScreen() {
     registerForNotifications();
   }, []);
 
-  // Get the current user ID
+  // Wait for auth to be initialized before proceeding
   useEffect(() => {
-    const user = getCurrentUser();
-    if (user) {
-      setCurrentUserId(user.uid);
+    if (isInitialized && !authLoading) {
+      if (!user) {
+        console.error('No authenticated user found');
+        Alert.alert(
+          'Authentication Required',
+          'Please log in to use the discover feature.',
+          [{ text: 'OK' }]
+        );
+        setLoading(false);
+        return;
+      }
+      
+      console.log('✅ Authentication verified, user ID:', user.uid);
     }
-  }, []);
+  }, [isInitialized, authLoading, user]);
 
   // Fetch potential matches whenever the screen comes into focus or refresh param changes
   useFocusEffect(
     useCallback(() => {
-      if (currentUserId) {
+      if (isInitialized && !authLoading && currentUserId) {
         fetchPotentialMatches();
       }
       
@@ -54,7 +68,7 @@ export default function DiscoverScreen() {
         // Cleanup if needed - this ensures we don't have animation conflicts when refreshing
         console.log('Cleaning up animations on screen blur');
       };
-    }, [currentUserId, refresh])
+    }, [currentUserId, refresh, isInitialized, authLoading])
   );
 
   // Function to fetch potential matches from Firebase
@@ -111,6 +125,9 @@ export default function DiscoverScreen() {
       // Record the pass in Firebase
       await recordSwipe(currentUserId, userId, 'pass');
       
+      // Remove the swiped profile from current list to prevent reappearance
+      setProfiles(prevProfiles => prevProfiles.filter(profile => profile.id !== userId));
+      
       // If we're running low on profiles, fetch more
       if (profiles.length <= 2) {
         fetchPotentialMatches();
@@ -137,6 +154,9 @@ export default function DiscoverScreen() {
       
       // Record the like in Firebase
       const matchResult = await recordSwipe(currentUserId, userId, 'like');
+      
+      // Remove the swiped profile from current list to prevent reappearance
+      setProfiles(prevProfiles => prevProfiles.filter(profile => profile.id !== userId));
       
       // If a match occurred, show a notification
       if (matchResult) {
@@ -203,6 +223,9 @@ export default function DiscoverScreen() {
       // Record the super like in Firebase
       const matchResult = await recordSwipe(currentUserId, userId, 'superlike');
       
+      // Remove the swiped profile from current list to prevent reappearance
+      setProfiles(prevProfiles => prevProfiles.filter(profile => profile.id !== userId));
+      
       // If a match occurred, show a notification
       if (matchResult) {
         Alert.alert(
@@ -265,8 +288,8 @@ export default function DiscoverScreen() {
     }
   };
 
-  // Render loading state
-  if (loading) {
+  // Render loading state (for profiles or authentication)
+  if (loading || authLoading || !isInitialized) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar style="dark" />

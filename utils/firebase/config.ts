@@ -11,6 +11,7 @@ import {
   initializeFirestore,
   CACHE_SIZE_UNLIMITED,
   persistentLocalCache,
+  persistentSingleTabManager,
   connectFirestoreEmulator,
   terminate,
   clearIndexedDbPersistence
@@ -45,15 +46,18 @@ export const db = Platform.OS === 'web'
       localCache: persistentLocalCache({
         cacheSizeBytes: CACHE_SIZE_UNLIMITED
       }),
-      // Additional settings for web to prevent connection issues
-      experimentalForceLongPolling: false,
+      experimentalForceLongPolling: true, // Added to prevent WebSocket issues
       ignoreUndefinedProperties: true,
+      maxAttempts: 5, // Add retry logic for operations
     })
   : initializeFirestore(app, {
-      // Enhanced settings for React Native to prevent internal assertion failures
-      experimentalForceLongPolling: false, // Disable long polling to prevent connection issues
-      cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-      ignoreUndefinedProperties: true, // Ignore undefined properties to prevent serialization issues
+      localCache: persistentLocalCache({
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+        tabManager: persistentSingleTabManager()
+      }),
+      experimentalForceLongPolling: true, // Force long polling on all platforms
+      ignoreUndefinedProperties: true,
+      maxAttempts: 5, // Add retry logic for operations
     });
 
 // We'll use regular Firestore instead of GeoFirestore for now
@@ -101,6 +105,7 @@ export const enableFirestoreNetwork = () => enableNetwork(db);
 // Global state to track connection refresh operations
 let isRefreshingConnection = false;
 let refreshPromise: Promise<boolean> | null = null;
+let lastSuccessfulRefresh = Date.now();
 
 // Enhanced function to refresh Firestore connection with better error handling
 export const refreshFirestoreConnection = async (): Promise<boolean> => {
@@ -110,11 +115,21 @@ export const refreshFirestoreConnection = async (): Promise<boolean> => {
     return refreshPromise;
   }
 
+  // If we've recently refreshed successfully, throttle additional refreshes
+  const timeSinceLastRefresh = Date.now() - lastSuccessfulRefresh;
+  if (timeSinceLastRefresh < 10000) { // 10 seconds
+    console.log(`Recent successful refresh (${Math.round(timeSinceLastRefresh / 1000)}s ago), skipping`);
+    return true;
+  }
+
   isRefreshingConnection = true;
   refreshPromise = performConnectionRefresh();
   
   try {
     const result = await refreshPromise;
+    if (result) {
+      lastSuccessfulRefresh = Date.now();
+    }
     return result;
   } finally {
     isRefreshingConnection = false;
@@ -159,7 +174,16 @@ const performConnectionRefresh = async (): Promise<boolean> => {
       console.log('✅ Network re-enabled successfully');
     } catch (enableError) {
       console.error('❌ Error re-enabling network:', enableError);
-      return false;
+      
+      // Try once more with a longer delay
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      try {
+        await enableNetwork(db);
+        console.log('✅ Network re-enabled successfully on second attempt');
+      } catch (retryError) {
+        console.error('❌ Error re-enabling network on retry:', retryError);
+        return false;
+      }
     }
     
     // Step 5: Wait for connection to stabilize
@@ -197,9 +221,29 @@ export const emergencyFirestoreReset = async (): Promise<boolean> => {
   }
 };
 
+// Rate limiting for error handler to prevent infinite loops
+let lastErrorHandleTime = 0;
+let errorHandleAttempts = 0;
+const ERROR_HANDLE_COOLDOWN = 5000; // 5 seconds
+const MAX_ERROR_HANDLE_ATTEMPTS = 3;
+
 // Enhanced error handler for Firestore operations
 export const handleFirestoreError = async (error: any, operation: string = 'unknown'): Promise<void> => {
   console.error(`❌ Firestore error in ${operation}:`, error);
+  
+  // Rate limiting check
+  const now = Date.now();
+  if (now - lastErrorHandleTime < ERROR_HANDLE_COOLDOWN) {
+    errorHandleAttempts++;
+    if (errorHandleAttempts > MAX_ERROR_HANDLE_ATTEMPTS) {
+      console.warn(`🛑 Rate limit exceeded for error handling. Skipping to prevent infinite loop.`);
+      return;
+    }
+  } else {
+    // Reset counter after cooldown period
+    errorHandleAttempts = 1;
+  }
+  lastErrorHandleTime = now;
   
   // Track error for monitoring
   errorMonitor.recordError(error, operation);
@@ -214,20 +258,20 @@ export const handleFirestoreError = async (error: any, operation: string = 'unkn
         console.log('✅ Connection refresh successful after internal assertion failure');
         errorMonitor.recordRecovery(operation);
       } else {
-        console.log('⚠️ Connection refresh failed, may need emergency reset');
-        // Don't automatically do emergency reset, let the app decide
+        console.log('⚠️ Connection refresh failed, but skipping emergency reset to prevent loops');
+        console.log('📋 Consider manual app restart if issues persist');
       }
     } catch (refreshError) {
       console.error('❌ Error during automatic refresh:', refreshError);
     }
   }
   
-  // Check for other specific errors
-  else if (error?.code === 'unavailable') {
+  // Check for other specific errors - but be more conservative about triggering refreshes
+  else if (error?.code === 'unavailable' && errorHandleAttempts <= 1) {
     console.log('🔧 Firestore unavailable, attempting connection refresh...');
     await refreshFirestoreConnection();
   }
-  else if (error?.message?.includes('Target ID already exists')) {
+  else if (error?.message?.includes('Target ID already exists') && errorHandleAttempts <= 1) {
     console.log('🔧 Target ID conflict detected, attempting connection refresh...');
     await refreshFirestoreConnection();
   }
@@ -265,19 +309,14 @@ class FirestoreErrorMonitor {
     const lastError = this.lastErrors.get(errorKey);
     const now = new Date();
     
-    // If errors are happening frequently (within last 2 minutes), consider emergency reset
+    // If errors are happening frequently (within last 2 minutes), log but DO NOT automatically reset
+    // Automatic resets can cause infinite loops - let manual intervention handle it
     if (lastError && (now.getTime() - lastError.getTime()) < 120000) {
-      console.log(`🚨 Frequent errors detected for ${errorKey}, considering emergency reset...`);
+      console.warn(`🚨 Frequent errors detected for ${errorKey}, but skipping automatic emergency reset to prevent infinite loops`);
+      console.warn(`📋 Manual intervention recommended: Consider restarting the app or checking network connectivity`);
       
-      try {
-        await emergencyFirestoreReset();
-        console.log('🔧 Emergency reset completed due to frequent errors');
-        
-        // Reset error counts after emergency action
-        this.errorCounts.set(errorKey, 0);
-      } catch (resetError) {
-        console.error('❌ Emergency reset failed:', resetError);
-      }
+      // Just reset error counts to prevent spamming, but don't trigger emergency reset
+      this.errorCounts.set(errorKey, 0);
     }
   }
   

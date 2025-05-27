@@ -16,11 +16,14 @@ import { AuthProvider } from '@/components/auth/AuthProvider';
 import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
 import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { refreshFirestoreConnection } from '@/utils/firebase/config';
 import { testFirebaseConfig } from '@/utils/firebase/test-config';
 import LocationTracker from '@/components/LocationTracker';
-import { getFirebaseHealthStatus } from '@/utils/firebase/config';
+import { refreshFirestoreConnection, emergencyFirestoreReset, getFirebaseHealthStatus } from '@/utils/firebase/config';
 import { notificationService } from '@/services/notificationServiceSafe';
+import { Alert } from 'react-native';
+import { setupGlobalErrorHandler, setupFirebaseErrorAutoRecovery } from '@/utils/firebase/globalErrorHandler';
+import { firestoreInitManager } from '@/utils/firebase/initManager';
+import { FirestoreProvider } from '@/components/FirestoreProvider';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -39,124 +42,169 @@ export default function RootLayout() {
     'Inter-Bold': Inter_700Bold,
   });
 
-  // Initialize network reconnection manager and system status document
+  // Set up global error handling for Firebase - keep this first
   useEffect(() => {
-    // The manager is already initialized as a singleton
-    console.log('Network reconnection manager initialized');
+    console.log('Setting up global error handlers...');
     
-    // Configure the reconnection manager
-    networkReconnectionManager.setVerboseLogging(false); // Disable verbose logging
+    let removeGlobalErrorHandler = () => {};
+    let removeAutoRecovery = () => {};
     
-    // Set a longer interval for periodic checks to reduce console spam
-    // 5 minutes between checks
-    networkReconnectionManager.setPeriodicCheckInterval(300000);
-    
-    // Set up system document with retry mechanism
-    // This will automatically retry if it fails initially due to offline state
-    scheduleSystemDocumentSetup();
-    
-    // Test Firebase configuration first
-    const initializeFirebase = async () => {
-      if (hasResetFirestoreConnection.current) return;
-      
-      console.log('🔥 Testing Firebase configuration...');
-      
-      try {
-        // Test Firebase config
-        const configTestPassed = await testFirebaseConfig();
-        
-        if (configTestPassed) {
-          console.log('✅ Firebase configuration test passed');
-          // Reset the connection to prevent "Target ID already exists" errors
-          await refreshFirestoreConnection();
-          hasResetFirestoreConnection.current = true;
-          console.log('✅ Initial Firestore connection reset completed successfully');
-          
-          // Initialize notification service with extra safety
-          try {
-            console.log('🔔 Initializing notification service...');
-            await notificationService.initialize();
-            console.log('✅ Notification service initialized successfully');
-          } catch (notificationError) {
-            console.error('❌ Failed to initialize notification service:', notificationError);
-            console.log('ℹ️ App will continue without push notifications');
-          }
-          
-          // Start periodic health checks
-          startPeriodicHealthChecks();
-        } else {
-          console.warn('⚠️ Firebase configuration test failed, but continuing...');
-        }
-      } catch (error) {
-        console.error('❌ Firebase initialization failed:', error);
-        
-        // Schedule another attempt after a delay
-        setTimeout(() => {
-          console.log('🔄 Retrying Firebase initialization...');
-          refreshFirestoreConnection()
-            .then(() => {
-              hasResetFirestoreConnection.current = true;
-              console.log('✅ Retry Firebase initialization completed');
-              startPeriodicHealthChecks();
-            })
-            .catch(retryError => {
-              console.error('❌ Retry Firebase initialization failed:', retryError);
-              hasResetFirestoreConnection.current = true;
-            });
-        }, 5000);
-      }
-    };
-    
-    // Function to start periodic health checks
-    const startPeriodicHealthChecks = () => {
-      console.log('🩺 Starting periodic Firebase health checks...');
-      
-      // Check health every 2 minutes
-      const healthCheckInterval = setInterval(async () => {
-        try {
-          const healthStatus = await getFirebaseHealthStatus();
-          
-          if (!healthStatus.healthy) {
-            console.warn('⚠️ Firebase health check failed:', healthStatus.issues);
-            
-            // If we have critical issues, attempt proactive recovery
-            const hasCriticalIssues = healthStatus.issues.some(issue => 
-              issue.includes('internal assertion') || 
-              issue.includes('High error count')
-            );
-            
-            if (hasCriticalIssues) {
-              console.log('🔧 Critical issues detected, attempting proactive recovery...');
-              try {
-                await refreshFirestoreConnection();
-                console.log('✅ Proactive recovery completed');
-              } catch (recoveryError) {
-                console.error('❌ Proactive recovery failed:', recoveryError);
-              }
-            }
-          } else {
-            console.log('✅ Firebase health check passed');
-          }
-        } catch (healthError) {
-          console.error('❌ Health check failed:', healthError);
-        }
-      }, 120000); // Check every 2 minutes
-      
-      // Clean up interval on unmount
-      return () => {
-        clearInterval(healthCheckInterval);
-      };
-    };
-    
-    // Start Firebase initialization
-    initializeFirebase();
+    try {
+      removeGlobalErrorHandler = setupGlobalErrorHandler();
+      removeAutoRecovery = setupFirebaseErrorAutoRecovery();
+      console.log('Global error handlers set up successfully');
+    } catch (error) {
+      console.error('Failed to set up global error handlers:', error);
+    }
     
     // Cleanup on unmount
     return () => {
-      networkReconnectionManager.cleanup();
-      notificationService.cleanup();
+      try {
+        removeGlobalErrorHandler();
+        removeAutoRecovery();
+      } catch (error) {
+        console.error('Error cleaning up global error handlers:', error);
+      }
     };
   }, []);
+
+  // Initialize network reconnection manager
+  useEffect(() => {
+    console.log('Initializing network reconnection manager...');
+    
+    try {
+      // Configure the reconnection manager
+      networkReconnectionManager.setVerboseLogging(false); // Disable verbose logging
+      
+      // Set a longer interval for periodic checks to reduce console spam (5 min)
+      networkReconnectionManager.setPeriodicCheckInterval(300000);
+      
+      // Set up system document with retry mechanism
+      scheduleSystemDocumentSetup();
+      
+      // Setup periodic health checks
+      const healthCheckCleanup = startPeriodicHealthChecks();
+      
+      // Cleanup on unmount
+      return () => {
+        try {
+          networkReconnectionManager.cleanup();
+          healthCheckCleanup();
+          console.log('Network reconnection manager cleaned up');
+        } catch (error) {
+          console.error('Error cleaning up network reconnection manager:', error);
+        }
+      };
+    } catch (error) {
+      console.error('Error initializing network reconnection manager:', error);
+      return () => {}; // Return empty cleanup function
+    }
+  }, []);
+  
+  // Initialize notification service in a separate effect to avoid race conditions
+  useEffect(() => {
+    let notificationCleanup = () => {};
+    
+    // Only initialize notification service when Firestore is ready
+    const initNotifications = async () => {
+      try {
+        // Ensure Firestore is ready before initializing notifications
+        await firestoreInitManager.waitForReady();
+        
+        console.log('🔔 Initializing notification service...');
+        await notificationService.initialize();
+        console.log('✅ Notification service initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize notification service:', error);
+        console.log('ℹ️ App will continue without push notifications');
+      }
+    };
+    
+    // Initialize notifications with a delay to ensure Firestore has time to initialize
+    const initTimeout = setTimeout(initNotifications, 2000);
+    
+    return () => {
+      clearTimeout(initTimeout);
+      try {
+        notificationService.cleanup();
+      } catch (error) {
+        console.error('Error cleaning up notification service:', error);
+      }
+    };
+  }, []);
+
+  // Function to start periodic health checks - moved outside useEffect for cleaner code
+  const startPeriodicHealthChecks = () => {
+    console.log('🩺 Starting periodic Firebase health checks...');
+    
+    // Check health every 2 minutes
+    const healthCheckInterval = setInterval(() => {
+      performHealthCheck().catch(error => {
+        console.error('Health check failed:', error);
+      });
+    }, 120000);
+    
+    // Return cleanup function
+    return () => {
+      clearInterval(healthCheckInterval);
+    };
+  };
+  
+  // Separate function for health check to keep the code cleaner
+  const performHealthCheck = async () => {
+    try {
+      // Skip health check if Firestore isn't ready yet
+      if (!firestoreInitManager.isReady()) {
+        console.log('Skipping health check - Firestore not fully initialized yet');
+        return;
+      }
+      
+      const healthStatus = await getFirebaseHealthStatus();
+      
+      if (!healthStatus.healthy) {
+        console.warn('⚠️ Firebase health check failed:', healthStatus.issues);
+        
+        // If we have critical issues, attempt proactive recovery
+        const hasCriticalIssues = healthStatus.issues.some(issue => 
+          issue.includes('internal assertion') || 
+          issue.includes('High error count')
+        );
+        
+        if (hasCriticalIssues) {
+          console.log('🔧 Critical issues detected, attempting proactive recovery...');
+          
+          // First try refreshing the connection
+          const refreshSuccess = await refreshFirestoreConnection();
+          
+          if (!refreshSuccess) {
+            // If refresh fails, try emergency reset
+            console.log('🚨 Connection refresh failed, attempting emergency reset...');
+            const resetSuccess = await emergencyFirestoreReset();
+            
+            if (resetSuccess) {
+              console.log('✅ Emergency reset successful during health check');
+            } else {
+              console.error('❌ Both refresh and emergency reset failed');
+              
+              // Show alert to user if all recovery attempts fail
+              Alert.alert(
+                'Connection Issue',
+                'We\'re experiencing some technical difficulties. Please try restarting the app.',
+                [{ text: 'OK' }]
+              );
+            }
+          } else {
+            console.log('✅ Proactive recovery completed');
+          }
+        }
+      } else {
+        console.log('✅ Firebase health check passed');
+      }
+    } catch (error) {
+      console.error('❌ Health check execution failed:', error);
+      throw error; // Rethrow to be caught by the caller
+    }
+  };
   
   // Special iOS simulator handling for app state changes and inactivity
   useEffect(() => {
@@ -251,25 +299,30 @@ export default function RootLayout() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AuthProvider>
-          <LocationTracker />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="chat/[id]" options={{ headerShown: false, presentation: 'modal' }} />
-            <Stack.Screen 
-              name="user-profile" 
-              options={{ 
-                headerShown: false, 
-                presentation: 'card',
-                animation: 'slide_from_right',
-                animationDuration: 200
-              }} 
-            />
-            <Stack.Screen name="seed-profiles" options={{ headerShown: true, presentation: 'modal' }} />
-            <Stack.Screen name="+not-found" options={{ headerShown: false }} />
-          </Stack>
-          <NetworkMonitor />
-          <StatusBar style="auto" />
+          <FirestoreProvider 
+            waitForReady={true} 
+            loadingDelay={1500} // Wait 1.5s before showing loading indicator
+          >
+            <LocationTracker />
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="chat/[id]" options={{ headerShown: false, presentation: 'modal' }} />
+              <Stack.Screen 
+                name="user-profile" 
+                options={{ 
+                  headerShown: false, 
+                  presentation: 'card',
+                  animation: 'slide_from_right',
+                  animationDuration: 200
+                }} 
+              />
+              <Stack.Screen name="seed-profiles" options={{ headerShown: true, presentation: 'modal' }} />
+              <Stack.Screen name="+not-found" options={{ headerShown: false }} />
+            </Stack>
+            <NetworkMonitor />
+            <StatusBar style="auto" />
+          </FirestoreProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

@@ -4,6 +4,7 @@ import { disableNetwork, enableNetwork, getDoc, doc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Platform } from 'react-native';
 import { checkNetworkStatus, testInternetConnectivity } from '../networkUtilsLite';
+import { handleFirestoreError } from './config';
 
 // Key to store auth data in AsyncStorage
 const AUTH_STORAGE_KEY = '@AuthData';
@@ -164,7 +165,7 @@ export const checkAndAutoSignIn = async () => {
   }
 };
 
-// Helper function to safely unsubscribe from multiple Firestore listeners
+// Enhanced helper function to safely unsubscribe from multiple Firestore listeners
 export const cleanupFirestoreListeners = (listeners: {[key: string]: (() => void) | undefined}) => {
   // Iterate through all listeners and unsubscribe
   Object.entries(listeners).forEach(([key, unsubscribe]) => {
@@ -178,4 +179,55 @@ export const cleanupFirestoreListeners = (listeners: {[key: string]: (() => void
       }
     }
   });
+};
+
+/**
+ * Creates a safer Firestore listener with automatic error handling and cleanup
+ * @param listenFn The Firestore onSnapshot function to call
+ * @param errorCallback Optional callback when errors occur
+ * @returns A function to unsubscribe the listener
+ */
+export const createSafeFirestoreListener = (
+  listenFn: () => (() => void),
+  errorCallback?: (error: any) => void
+): (() => void) => {
+  let isActive = true;
+  let unsubscribeFn: (() => void) | null = null;
+  
+  try {
+    // Set up the listener
+    unsubscribeFn = listenFn();
+    
+    // Return an enhanced unsubscribe function
+    return () => {
+      if (isActive && unsubscribeFn) {
+        try {
+          unsubscribeFn();
+          isActive = false;
+        } catch (error) {
+          console.warn('Error unsubscribing from Firestore listener:', error);
+        }
+      }
+    };
+  } catch (error) {
+    console.error('Error setting up Firestore listener:', error);
+    
+    // Call error callback if provided
+    if (errorCallback && typeof errorCallback === 'function') {
+      try {
+        errorCallback(error);
+      } catch (callbackError) {
+        console.error('Error in listener error callback:', callbackError);
+      }
+    }
+    
+    // Handle Firestore error
+    handleFirestoreError(error, 'create_listener')
+      .catch(handlerError => console.error('Error in listener error handler:', handlerError));
+    
+    // Return a no-op unsubscribe function
+    return () => {
+      isActive = false;
+    };
+  }
 }; 

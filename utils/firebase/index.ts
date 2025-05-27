@@ -17,7 +17,7 @@ export {
   refreshFirestoreConnection
 } from './config';
 
-// Auth exports
+// Auth exports - use the safe versions
 export {
   registerUser,
   registerUserWithoutProfile,
@@ -28,7 +28,7 @@ export {
   getCurrentUser,
   subscribeToAuthChanges,
   updateUserLocation
-} from './auth';
+} from './safeAuth';
 
 // Database exports
 export {
@@ -64,11 +64,33 @@ export {
 
 // Utility exports
 export {
-  logFirebaseError,
-  checkNetworkBeforeOperation,
   refreshFirebaseConnection,
   storeUserCredentials,
   clearUserCredentials,
   checkAndAutoSignIn,
-  cleanupFirestoreListeners
-} from './utils'; 
+  logFirebaseError,
+  checkNetworkBeforeOperation,
+  cleanupFirestoreListeners,
+  createSafeFirestoreListener
+} from './utils';
+
+// Firestore operations queue exports
+export {
+  safeFirestoreOperation,
+  firestoreQueue
+} from './operationQueue';
+
+// Firestore initialization manager exports
+export {
+  firestoreInitManager,
+  runWhenFirestoreReady,
+  FirestoreInitState
+} from './initManager';
+
+// Emergency recovery exports
+export {
+  emergencyStop,
+  manualRecovery,
+  checkForErrorLoop,
+  RECOVERY_INSTRUCTIONS
+} from './emergencyRecovery'; 

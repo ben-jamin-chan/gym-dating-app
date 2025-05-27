@@ -62,6 +62,24 @@ export const recordSwipe = async (
   action: 'like' | 'pass' | 'superlike'
 ): Promise<Match | null> => {
   try {
+    // Verify that the user is authenticated
+    const currentUser = getAuth().currentUser;
+    if (!currentUser) {
+      throw new Error('User must be authenticated to perform swipe actions');
+    }
+    
+    // Verify that the provided userId matches the authenticated user
+    if (currentUser.uid !== userId) {
+      throw new Error('User ID mismatch: action not allowed');
+    }
+    
+    console.log('🔐 User authentication verified for swipe action:', {
+      authUserId: currentUser.uid,
+      providedUserId: userId,
+      targetUserId,
+      action
+    });
+
     // If this is a super like, check and consume the super like first
     if (action === 'superlike') {
       try {
@@ -75,7 +93,15 @@ export const recordSwipe = async (
     
     // Create a unique ID for this swipe combination
     // We'll use a consistent format so we can easily check for mutual likes
-    const swipeId = `${userId}_${targetUserId}`;
+    // Make sure it's clean and doesn't have any duplicate user IDs
+    // Ensure the format is exactly "userId_targetUserId" without any extra data
+    const swipeId = `${userId.split('_')[0]}_${targetUserId.split('_').pop() || targetUserId}`;
+    
+    console.log('🛠️ Fixed swipe ID created:', {
+      originalUserId: userId,
+      originalTargetUserId: targetUserId,
+      cleanedSwipeId: swipeId
+    });
     
     // Record the swipe in Firestore
     console.log('📝 Recording swipe with data:', {
@@ -106,7 +132,13 @@ export const recordSwipe = async (
     
     // Check if there's a mutual like (the other user has already liked this user)
     // For that we need to check the reverse swipe ID
-    const reverseSwipeId = `${targetUserId}_${userId}`;
+    // Use the same cleaning logic to ensure consistent ID format
+    const targetUserIdClean = targetUserId.split('_').pop() || targetUserId;
+    const userIdClean = userId.split('_')[0];
+    const reverseSwipeId = `${targetUserIdClean}_${userIdClean}`;
+    
+    console.log('🔄 Checking for mutual like with reverse swipe ID:', reverseSwipeId);
+    
     const reverseSwipeDoc = await getDoc(doc(swipesCollection, reverseSwipeId));
     
     // If the other user has also liked this user, create a match
@@ -402,8 +434,8 @@ export const getPotentialMatchesWithPreferences = async (userId: string): Promis
       // Check if this is a test profile (has underscore in ID)
       const isTestProfile = doc.id.includes('_');
       
-      // Skip users already swiped on (except test profiles)
-      if (!isTestProfile && swipedUserIds.includes(doc.id)) {
+      // Skip users already swiped on (including test profiles)
+      if (swipedUserIds.includes(doc.id)) {
         skippedProfiles.push({id: doc.id, reason: 'Already swiped'});
         return;
       }

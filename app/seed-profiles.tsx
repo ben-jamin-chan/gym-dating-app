@@ -13,7 +13,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Emma Wilson',
     age: 26,
     bio: 'Yoga instructor and CrossFit competitor. Looking for someone to train with and explore new trails.',
-    images: ['https://randomuser.me/api/portraits/women/32.jpg', 'https://randomuser.me/api/portraits/women/33.jpg'],
+    images: ['https://i.pinimg.com/564x/e5/20/08/e520081e08b851bf7758ec3ee87eb891.jpg', 'https://randomuser.me/api/portraits/women/33.jpg'],
     interests: ['CrossFit', 'Yoga', 'Nutrition', 'Hiking'],
     gender: 'Female',
     workoutFrequency: 'Daily',
@@ -28,7 +28,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Taylor Smith',
     age: 27,
     bio: 'Personal trainer who loves outdoor activities and trying new workout routines.',
-    images: ['https://randomuser.me/api/portraits/women/44.jpg', 'https://randomuser.me/api/portraits/women/45.jpg'],
+    images: ['https://ifbbproofficial.com/wp-content/uploads/2024/08/Categorie-IFBB-Elite-Pro-Women-Bodyfitness.jpeg', 'https://randomuser.me/api/portraits/women/45.jpg'],
     interests: ['Fitness', 'Running', 'Nutrition'],
     gender: 'Female',
     workoutFrequency: '3-5x/week',
@@ -43,7 +43,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Jamie Lee',
     age: 30,
     bio: 'Crossfit coach and mountain climber. Looking for a gym buddy who enjoys protein shakes!',
-    images: ['https://randomuser.me/api/portraits/women/68.jpg', 'https://randomuser.me/api/portraits/women/69.jpg'],
+    images: ['https://www.greatestphysiques.com/wp-content/uploads/2018/01/Larry-Wheels.07.jpg', 'https://randomuser.me/api/portraits/women/69.jpg'],
     interests: ['Crossfit', 'Climbing', 'Protein Shakes'],
     gender: 'Female',
     workoutFrequency: 'Daily',
@@ -58,7 +58,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Chris Morgan',
     age: 29,
     bio: 'Gym owner and fitness blogger who never skips leg day. Coffee enthusiast.',
-    images: ['https://randomuser.me/api/portraits/men/79.jpg', 'https://randomuser.me/api/portraits/men/80.jpg'],
+    images: ['https://ifbbproofficial.com/wp-content/uploads/2024/08/Categorie-IFBB-Elite-Pro-Women-Bodyfitness.jpeg', 'https://randomuser.me/api/portraits/men/80.jpg'],
     interests: ['Weightlifting', 'Boxing', 'Meal Prep'],
     gender: 'Male',
     workoutFrequency: '3-5x/week',
@@ -73,7 +73,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Mike Johnson',
     age: 32,
     bio: 'Marathon runner and yoga enthusiast. Looking for a workout partner with similar interests.',
-    images: ['https://randomuser.me/api/portraits/men/52.jpg', 'https://randomuser.me/api/portraits/men/53.jpg'],
+    images: ['https://www.greatestphysiques.com/wp-content/uploads/2017/05/Long-Wu-06.jpg', 'https://randomuser.me/api/portraits/men/53.jpg'],
     interests: ['Running', 'Yoga', 'Nutrition'],
     gender: 'Male',
     workoutFrequency: 'Daily',
@@ -88,7 +88,7 @@ const mockProfiles: UserProfile[] = [
     displayName: 'Alex Chen',
     age: 24,
     bio: 'Part-time fitness instructor, full-time fitness enthusiast. Love trying new workout classes!',
-    images: ['https://randomuser.me/api/portraits/women/90.jpg', 'https://randomuser.me/api/portraits/women/91.jpg'],
+    images: ['https://www.evogennutrition.com/cdn/shop/articles/Evogen_Elite_Signs_IFBB_Pro_League_Star_Derek_Lunsford_1200x1200_f550c491-91b4-4294-af69-151bda2c7ec5_1200x1200.jpg?v=1614281193', 'https://randomuser.me/api/portraits/women/91.jpg'],
     interests: ['HIIT', 'Pilates', 'Dancing'],
     gender: 'Female',
     workoutFrequency: '1-2x/week',
@@ -107,7 +107,7 @@ const additionalProfiles: UserProfile[] = [
     displayName: 'Sophie Walker',
     age: 28,
     bio: 'Powerlifting champion and nutrition coach. Looking for someone who appreciates good form in the gym and in life.',
-    images: ['https://randomuser.me/api/portraits/women/22.jpg', 'https://randomuser.me/api/portraits/women/23.jpg'],
+    images: ['https://i.pinimg.com/564x/e5/20/08/e520081e08b851bf7758ec3ee87eb891.jpg', 'https://randomuser.me/api/portraits/women/23.jpg'],
     interests: ['Powerlifting', 'Nutrition', 'Recovery', 'Cooking'],
     gender: 'Female',
     workoutFrequency: '3-5x/week',
@@ -122,7 +122,7 @@ const additionalProfiles: UserProfile[] = [
     displayName: 'David Kim',
     age: 31,
     bio: 'Olympic weightlifter and sports medicine doctor. I believe in balanced training and active recovery.',
-    images: ['https://randomuser.me/api/portraits/men/34.jpg', 'https://randomuser.me/api/portraits/men/35.jpg'],
+    images: ['https://ifbbproofficial.com/wp-content/uploads/2024/08/Categorie-IFBB-Elite-Pro-Women-Bodyfitness.jpeg', 'https://randomuser.me/api/portraits/men/35.jpg'],
     interests: ['Olympic Weightlifting', 'Mobility', 'Sports Medicine'],
     gender: 'Male',
     workoutFrequency: 'Daily',
@@ -137,7 +137,7 @@ const additionalProfiles: UserProfile[] = [
     displayName: 'Rachel Green',
     age: 26,
     bio: 'Avid hiker and outdoor enthusiast. Can\'t get enough of trail running and mountain views.',
-    images: ['https://randomuser.me/api/portraits/women/54.jpg', 'https://randomuser.me/api/portraits/women/55.jpg'],
+    images: ['https://www.evogennutrition.com/cdn/shop/articles/Evogen_Elite_Signs_IFBB_Pro_League_Star_Derek_Lunsford_1200x1200_f550c491-91b4-4294-af69-151bda2c7ec5_1200x1200.jpg?v=1614281193', 'https://randomuser.me/api/portraits/women/91.jpg', 'https://randomuser.me/api/portraits/women/55.jpg'],
     interests: ['Hiking', 'Trail Running', 'Rock Climbing'],
     gender: 'Female',
     workoutFrequency: '3-5x/week',
@@ -152,7 +152,7 @@ const additionalProfiles: UserProfile[] = [
     displayName: 'Marcus Wilson',
     age: 33,
     bio: 'Former pro basketball player, now a fitness coach. Looking for someone who enjoys competitive sports.',
-    images: ['https://randomuser.me/api/portraits/men/62.jpg', 'https://randomuser.me/api/portraits/men/63.jpg'],
+    images: ['https://i.pinimg.com/564x/e5/20/08/e520081e08b851bf7758ec3ee87eb891.jpg', 'https://randomuser.me/api/portraits/men/63.jpg'],
     interests: ['Basketball', 'Coaching', 'HIIT', 'Team Sports'],
     gender: 'Male',
     workoutFrequency: 'Daily',
@@ -172,6 +172,7 @@ export default function SeedProfilesScreen() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [isResettingAll, setIsResettingAll] = useState(false);
+  const [isDeletingMockProfiles, setIsDeletingMockProfiles] = useState(false);
   const [results, setResults] = useState<{id: string, success: boolean, message: string}[]>([]);
   const [allCompleted, setAllCompleted] = useState(false);
 
@@ -326,6 +327,73 @@ export default function SeedProfilesScreen() {
     }
   };
 
+  // Function to delete all mock profiles from the database
+  const handleDeleteAllMockProfiles = async () => {
+    Alert.alert(
+      'Delete All Mock Profiles',
+      'This will permanently delete ALL mock/test profiles from the discover page. This action cannot be undone. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete All',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeletingMockProfiles(true);
+              
+              // Import necessary Firebase functions
+              const { collection, getDocs, deleteDoc, doc, query, where } = require('firebase/firestore');
+              const { db } = require('@/utils/firebase');
+              
+              // Get all users from the users collection
+              const usersRef = collection(db, 'users');
+              const querySnapshot = await getDocs(usersRef);
+              
+                             // Filter and delete profiles that start with 'test_'
+              const deletePromises: Promise<void>[] = [];
+              let mockProfileCount = 0;
+              
+              querySnapshot.forEach((document: any) => {
+                const userId = document.id;
+                
+                // Check if this is a mock profile (starts with 'test_')
+                if (userId.startsWith('test_')) {
+                  deletePromises.push(deleteDoc(doc(db, 'users', document.id)));
+                  mockProfileCount++;
+                }
+              });
+              
+              // Execute all deletions
+              if (deletePromises.length > 0) {
+                await Promise.all(deletePromises);
+              }
+              
+              setIsDeletingMockProfiles(false);
+              
+              Alert.alert(
+                'Mock Profiles Deleted',
+                `Successfully deleted ${mockProfileCount} mock profiles from the discover page.`,
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              console.error('Error deleting mock profiles:', error);
+              setIsDeletingMockProfiles(false);
+              
+              Alert.alert(
+                'Error',
+                `Failed to delete mock profiles: ${error.message}`,
+                [{ text: 'OK' }]
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ 
@@ -377,6 +445,19 @@ export default function SeedProfilesScreen() {
         >
           <Text style={styles.seedButtonText}>
             {isResettingAll ? 'Resetting All Swipes...' : 'Reset ALL Swipes (Testing)'}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[
+            styles.deleteAllProfilesButton, 
+            isDeletingMockProfiles && styles.seedButtonDisabled
+          ]}
+          onPress={handleDeleteAllMockProfiles}
+          disabled={isDeletingMockProfiles}
+        >
+          <Text style={styles.seedButtonText}>
+            {isDeletingMockProfiles ? 'Deleting Mock Profiles...' : 'Delete ALL Mock Profiles'}
           </Text>
         </TouchableOpacity>
         
@@ -502,6 +583,14 @@ const styles = StyleSheet.create({
   },
   resetAllButton: {
     backgroundColor: '#EC4899', // Different color to indicate this is a "danger" action
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  deleteAllProfilesButton: {
+    backgroundColor: '#DC2626', // Red color to indicate this is a destructive action
     paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
