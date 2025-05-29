@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { safeStringify } from './safeStringify';
 
 /**
  * Simplified network utilities that focus on basic connectivity checks
@@ -16,7 +17,7 @@ export const checkNetworkStatus = async () => {
   
   // For native platforms, use NetInfo
   const netInfo = await NetInfo.fetch();
-  console.log(`Network status: ${JSON.stringify({
+  console.log(`Network status: ${safeStringify({
     isConnected: netInfo.isConnected,
     type: netInfo.type,
     details: netInfo.details,

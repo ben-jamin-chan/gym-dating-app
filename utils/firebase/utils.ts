@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Platform } from 'react-native';
 import { checkNetworkStatus, testInternetConnectivity } from '../networkUtilsLite';
 import { handleFirestoreError } from './config';
+import { safeStringify } from '../safeStringify';
 
 // Key to store auth data in AsyncStorage
 const AUTH_STORAGE_KEY = '@AuthData';
@@ -13,7 +14,7 @@ const AUTH_STORAGE_KEY = '@AuthData';
 export const logFirebaseError = (context: string, error: any) => {
   console.error(`${context}: ${error.message}`);
   console.error(`Error code: ${error.code}`);
-  console.error(`Error details: ${JSON.stringify(error)}`);
+  console.error(`Error details: ${safeStringify(error)}`);
   
   // Log specific network-related errors
   if (error.code === 'auth/network-request-failed') {

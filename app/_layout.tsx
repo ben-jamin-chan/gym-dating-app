@@ -1,6 +1,6 @@
 import '@/utils/uuidPolyfill'; // UUID crypto polyfill - must be imported before any uuid usage
 import { initializeConsoleEnhancer } from '@/utils/consoleEnhancer'; // Enhanced console logging
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Initialize enhanced console logging immediately
 initializeConsoleEnhancer();
@@ -9,7 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SplashScreen } from 'expo-router';
-import { Platform, AppState, AppStateStatus } from 'react-native';
+import { Platform, AppState, AppStateStatus, TouchableOpacity, Text, View, StyleSheet, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import NetworkMonitor from '@/components/NetworkMonitor';
 import { AuthProvider } from '@/components/auth/AuthProvider';
@@ -18,15 +18,33 @@ import { scheduleSystemDocumentSetup } from '@/utils/setupSystemDocument';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { testFirebaseConfig } from '@/utils/firebase/test-config';
 import LocationTracker from '@/components/LocationTracker';
-import { refreshFirestoreConnection, emergencyFirestoreReset, getFirebaseHealthStatus } from '@/utils/firebase/config';
+import { refreshFirestoreConnection, emergencyFirestoreReset } from '@/utils/firebase/config';
 import { notificationService } from '@/services/notificationServiceSafe';
-import { Alert } from 'react-native';
 import { setupGlobalErrorHandler, setupFirebaseErrorAutoRecovery } from '@/utils/firebase/globalErrorHandler';
 import { firestoreInitManager } from '@/utils/firebase/initManager';
 import { FirestoreProvider } from '@/components/FirestoreProvider';
+import { verifyFirebaseOnStartup, isFirebaseHealthy, manualRecovery } from '@/utils/firebase';
 
 // Prevent the splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
+
+// Component to show a restart button when Firebase issues are detected
+const ErrorRestartButton = ({ onPress, visible }) => {
+  if (!visible) return null;
+  
+  return (
+    <View style={styles.errorButtonContainer}>
+      <TouchableOpacity
+        style={styles.restartButton}
+        onPress={onPress}
+      >
+        <Text style={styles.restartButtonText}>
+          Connection Issue - Tap to Restart
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -34,6 +52,9 @@ export default function RootLayout() {
   const inactiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActiveTime = useRef<number>(Date.now());
   const hasResetFirestoreConnection = useRef(false);
+  
+  // State to track Firebase errors
+  const [firebaseErrorDetected, setFirebaseErrorDetected] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
     'Inter-Regular': Inter_400Regular,
@@ -41,6 +62,45 @@ export default function RootLayout() {
     'Inter-SemiBold': Inter_600SemiBold,
     'Inter-Bold': Inter_700Bold,
   });
+
+  // Handle emergency reset when the restart button is pressed
+  const handleEmergencyReset = async () => {
+    try {
+      Alert.alert(
+        "Restarting Connection",
+        "Attempting to fix the connection issue...",
+        [{ text: "OK" }]
+      );
+      
+      // Perform manual recovery
+      await manualRecovery();
+      
+      // Check if it worked
+      const healthStatus = await isFirebaseHealthy();
+      
+      if (healthStatus.healthy) {
+        Alert.alert(
+          "Connection Restored",
+          "The app connection has been restored. Please continue using the app normally.",
+          [{ text: "Great!" }]
+        );
+        setFirebaseErrorDetected(false);
+      } else {
+        Alert.alert(
+          "Still Having Issues",
+          "Please try closing the app completely and reopening it.",
+          [{ text: "OK" }]
+        );
+      }
+    } catch (error) {
+      console.error("Error during emergency reset:", error);
+      Alert.alert(
+        "Reset Failed",
+        "Please try closing the app completely and reopening it.",
+        [{ text: "OK" }]
+      );
+    }
+  };
 
   // Set up global error handling for Firebase - keep this first
   useEffect(() => {
@@ -53,19 +113,31 @@ export default function RootLayout() {
       removeGlobalErrorHandler = setupGlobalErrorHandler();
       removeAutoRecovery = setupFirebaseErrorAutoRecovery();
       console.log('Global error handlers set up successfully');
+      
+      // Set up error detection - check global error count every 5 seconds
+      const errorCheckInterval = setInterval(() => {
+        if (global.__firestoreErrorCount > 10) {
+          // Show the restart button if we've detected many errors
+          setFirebaseErrorDetected(true);
+          
+          // Reset the counter so we don't keep showing alerts
+          global.__firestoreErrorCount = 0;
+        }
+      }, 5000);
+      
+      return () => {
+        try {
+          removeGlobalErrorHandler();
+          removeAutoRecovery();
+          clearInterval(errorCheckInterval);
+        } catch (error) {
+          console.error('Error cleaning up global error handlers:', error);
+        }
+      };
     } catch (error) {
       console.error('Failed to set up global error handlers:', error);
+      return () => {};
     }
-    
-    // Cleanup on unmount
-    return () => {
-      try {
-        removeGlobalErrorHandler();
-        removeAutoRecovery();
-      } catch (error) {
-        console.error('Error cleaning up global error handlers:', error);
-      }
-    };
   }, []);
 
   // Initialize network reconnection manager
@@ -133,6 +205,36 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Initialize Firebase and verify it's working properly
+  useEffect(() => {
+    const initFirebase = async () => {
+      try {
+        console.log('🔍 Verifying Firebase on startup...');
+        const isHealthy = await verifyFirebaseOnStartup();
+        
+        if (isHealthy) {
+          console.log('✅ Firebase verification successful');
+          setFirebaseErrorDetected(false);
+        } else {
+          console.warn('⚠️ Firebase verification failed, app may experience issues');
+          // Show a helpful message to the user
+          setFirebaseErrorDetected(true);
+          Alert.alert(
+            'Connection Issue',
+            'We detected a problem with the app connection. If you experience issues, tap the "Restart Connection" button at the bottom of the screen.',
+            [{ text: 'OK' }]
+          );
+        }
+      } catch (error) {
+        console.error('❌ Error during Firebase verification:', error);
+        setFirebaseErrorDetected(true);
+      }
+    };
+    
+    // Run Firebase verification
+    initFirebase();
+  }, []);
+
   // Function to start periodic health checks - moved outside useEffect for cleaner code
   const startPeriodicHealthChecks = () => {
     console.log('🩺 Starting periodic Firebase health checks...');
@@ -159,50 +261,26 @@ export default function RootLayout() {
         return;
       }
       
-      const healthStatus = await getFirebaseHealthStatus();
+      // Use the new isFirebaseHealthy function
+      const healthStatus = await isFirebaseHealthy();
       
       if (!healthStatus.healthy) {
-        console.warn('⚠️ Firebase health check failed:', healthStatus.issues);
-        
         // If we have critical issues, attempt proactive recovery
-        const hasCriticalIssues = healthStatus.issues.some(issue => 
-          issue.includes('internal assertion') || 
-          issue.includes('High error count')
-        );
+        console.warn('Firebase health check failed:', healthStatus);
+        setFirebaseErrorDetected(true);
         
-        if (hasCriticalIssues) {
-          console.log('🔧 Critical issues detected, attempting proactive recovery...');
-          
-          // First try refreshing the connection
-          const refreshSuccess = await refreshFirestoreConnection();
-          
-          if (!refreshSuccess) {
-            // If refresh fails, try emergency reset
-            console.log('🚨 Connection refresh failed, attempting emergency reset...');
-            const resetSuccess = await emergencyFirestoreReset();
-            
-            if (resetSuccess) {
-              console.log('✅ Emergency reset successful during health check');
-            } else {
-              console.error('❌ Both refresh and emergency reset failed');
-              
-              // Show alert to user if all recovery attempts fail
-              Alert.alert(
-                'Connection Issue',
-                'We\'re experiencing some technical difficulties. Please try restarting the app.',
-                [{ text: 'OK' }]
-              );
-            }
-          } else {
-            console.log('✅ Proactive recovery completed');
-          }
+        // Try to refresh the Firestore connection
+        try {
+          await refreshFirestoreConnection();
+        } catch (error) {
+          console.error('Failed to refresh Firestore connection:', error);
         }
       } else {
-        console.log('✅ Firebase health check passed');
+        // If everything is healthy, make sure the error button is hidden
+        setFirebaseErrorDetected(false);
       }
     } catch (error) {
-      console.error('❌ Health check execution failed:', error);
-      throw error; // Rethrow to be caught by the caller
+      console.error('Error performing health check:', error);
     }
   };
   
@@ -322,9 +400,40 @@ export default function RootLayout() {
             </Stack>
             <NetworkMonitor />
             <StatusBar style="auto" />
+            <ErrorRestartButton 
+              visible={firebaseErrorDetected} 
+              onPress={handleEmergencyReset} 
+            />
           </FirestoreProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  errorButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  restartButton: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  restartButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});

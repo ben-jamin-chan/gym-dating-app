@@ -13,6 +13,7 @@ import { Heart, X, Star, Info } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { recordSwipe } from '@/services/matchService';
 import { calculateAge } from '@/utils/dateUtils';
+import { safeStringify } from '../utils/safeStringify';
 
 // Default profile image URL as a fallback
 const DEFAULT_PROFILE_IMAGE = 'https://randomuser.me/api/portraits/lego/1.jpg';
@@ -47,7 +48,7 @@ export default function UserProfileScreen() {
         const profileData = await getUserProfile(targetUserId);
         if (profileData) {
           // Log profile data to debug image issues
-          console.log('Profile data fetched:', JSON.stringify({
+          console.log('Profile data fetched:', safeStringify({
             id: profileData.id,
             photoURLs: profileData.photoURL,
             photos: profileData.photos,

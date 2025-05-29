@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { safeStringify } from './safeStringify';
 
 // Store original console methods
 const originalConsoleError = console.error;
@@ -14,7 +15,7 @@ const enhancedConsoleError = (...args: any[]) => {
   if (Platform.OS !== 'web') {
     // Use a distinctive prefix to make errors stand out
     const errorMessage = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      typeof arg === 'object' ? safeStringify(arg) : String(arg)
     ).join(' ');
     
     // Log with timestamp and clear error indicator
@@ -29,7 +30,7 @@ const enhancedConsoleWarn = (...args: any[]) => {
   
   if (Platform.OS !== 'web') {
     const warnMessage = args.map(arg => 
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+      typeof arg === 'object' ? safeStringify(arg) : String(arg)
     ).join(' ');
     
     const timestamp = new Date().toISOString();

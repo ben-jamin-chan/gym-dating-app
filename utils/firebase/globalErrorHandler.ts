@@ -5,8 +5,9 @@ import { handleFirestoreError, refreshFirestoreConnection, emergencyFirestoreRes
 let consecutiveFirestoreErrors = 0;
 let lastFirestoreErrorTime = 0;
 let isHandlingFirestoreError = false;
-const MAX_CONSECUTIVE_ERRORS = 10;
-const ERROR_RESET_INTERVAL = 30000; // 30 seconds
+const MAX_CONSECUTIVE_ERRORS = 3; // Reduced from 5 to be more aggressive
+const ERROR_RESET_INTERVAL = 60000; // Increased to 60 seconds
+const SEVERE_ERROR_THRESHOLD = 10; // Reduced from 20 to be more aggressive
 
 /**
  * Reset the circuit breaker after a cooling off period
@@ -36,8 +37,21 @@ const shouldHandleFirestoreError = (): boolean => {
   if (consecutiveFirestoreErrors > MAX_CONSECUTIVE_ERRORS) {
     console.warn(`🛑 Circuit breaker activated: Too many consecutive Firestore errors (${consecutiveFirestoreErrors}). Stopping error handling to prevent infinite loop.`);
     
+    // Immediate emergency stop if we're in a severe loop
+    if (consecutiveFirestoreErrors > SEVERE_ERROR_THRESHOLD && typeof global.__emergencyStop === 'function') {
+      console.warn('🚨 SEVERE ERROR LOOP DETECTED: Executing emergency stop automatically');
+      try {
+        global.__emergencyStop();
+        
+        // We won't reset the circuit breaker here - app should be restarted
+        return false;
+      } catch (e) {
+        console.error('Failed to execute emergency stop:', e);
+      }
+    }
+    
     // Schedule a reset after a longer cooling off period
-    setTimeout(resetCircuitBreaker, ERROR_RESET_INTERVAL);
+    setTimeout(resetCircuitBreaker, ERROR_RESET_INTERVAL * 2); // Double the cool-off period
     return false;
   }
   
@@ -48,6 +62,27 @@ const shouldHandleFirestoreError = (): boolean => {
   }
   
   return true;
+};
+
+/**
+ * Check if an error is a Firestore internal assertion failure
+ */
+const isFirestoreInternalError = (error: any): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  
+  // Look for specific Firestore assertion error patterns
+  if (error.message && typeof error.message === 'string') {
+    return (
+      // Standard internal assertion failure
+      (error.message.includes('FIRESTORE') && error.message.includes('INTERNAL ASSERTION FAILED')) ||
+      // Error about terminated client
+      (error.message.includes('The client has already been terminated')) ||
+      // Error about initialization with different options
+      (error.message.includes('initializeFirestore() has already been called with different options'))
+    );
+  }
+  
+  return false;
 };
 
 /**
@@ -72,19 +107,17 @@ export const setupGlobalErrorHandler = () => {
     
     // Set a custom error handler that intercepts Firestore errors
     ErrorUtils.setGlobalHandler((error: any, isFatal?: boolean) => {
-      // First, check if this is a Firestore internal assertion error
-      const isFirestoreError = error?.message?.includes('FIRESTORE') && 
-                              error?.message?.includes('INTERNAL ASSERTION FAILED');
-      
-      if (isFirestoreError) {
+      // Check for Firestore internal errors
+      if (isFirestoreInternalError(error)) {
         console.log('🚨 Global error handler caught Firestore internal assertion failure');
         
         // Track errors globally for loop detection
         if (typeof global !== 'undefined') {
           global.__firestoreErrorCount = (global.__firestoreErrorCount || 0) + 1;
+          global.__lastErrorCheck = Date.now();
           
           // Log instructions if we're in a potential loop
-          if (global.__firestoreErrorCount > 20) {
+          if (global.__firestoreErrorCount > 10) {
             console.warn('🚨 POTENTIAL ERROR LOOP DETECTED!');
             console.warn('Run global.__emergencyStop() from console to break the loop');
           }
@@ -108,24 +141,33 @@ export const setupGlobalErrorHandler = () => {
             await Promise.race([
               handleFirestoreError(error, 'global_handler'),
               new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Error handling timeout')), 10000)
+                setTimeout(() => reject(new Error('Error handling timeout')), 5000) // Reduced timeout
               )
             ]);
             console.log('✅ Global error handler processed Firestore error');
             
+            // Always perform a basic network reset for Firebase internal errors
+            try {
+              await refreshFirestoreConnection();
+            } catch (resetError) {
+              console.error('Failed to refresh Firestore connection:', resetError);
+            }
+            
             // For fatal errors, we need to try an emergency reset (but only if not too many recent errors)
-            if (isFatal && consecutiveFirestoreErrors < 5) {
+            if (isFatal && consecutiveFirestoreErrors < MAX_CONSECUTIVE_ERRORS) {
               console.log('⚠️ Fatal Firestore error, attempting emergency reset...');
               try {
                 const success = await Promise.race([
                   emergencyFirestoreReset(),
                   new Promise<boolean>((_, reject) => 
-                    setTimeout(() => reject(new Error('Emergency reset timeout')), 15000)
+                    setTimeout(() => reject(new Error('Emergency reset timeout')), 10000) // Reduced timeout
                   )
                 ]);
                 
                 if (success) {
                   console.log('✅ Emergency reset successful after fatal error');
+                  // Reset the error count after successful reset
+                  consecutiveFirestoreErrors = 0;
                 } else {
                   console.error('❌ Emergency reset failed after fatal error');
                 }
@@ -209,8 +251,7 @@ const setupAlternativeErrorHandler = () => {
       if (global.ErrorUtils && originalHandler) {
         global.ErrorUtils.setGlobalHandler((error, isFatal) => {
           try {
-            if (error?.message?.includes('FIRESTORE') && 
-                error?.message?.includes('INTERNAL ASSERTION FAILED')) {
+            if (isFirestoreInternalError(error)) {
               console.log('🚨 Alternative error handler caught Firestore error');
               
               // Check circuit breaker before handling
@@ -242,59 +283,55 @@ const setupAlternativeErrorHandler = () => {
 };
 
 /**
- * Auto-recovers from common Firebase errors, particularly in development
+ * Sets up automatic recovery for Firebase unhandled promise rejections
  */
 export const setupFirebaseErrorAutoRecovery = () => {
-  // Only run advanced error recovery in development
-  if (__DEV__) {
+  try {
     // Listen for unhandled promise rejections
     const handleRejection = (event: any) => {
       const error = event?.reason || event;
       
-      // Check if this is a Firebase-related error
-      const isFirebaseError = error?.message?.includes('Firebase') || 
-                             error?.message?.includes('Firestore') ||
-                             error?.message?.includes('INTERNAL ASSERTION');
-                             
-      if (isFirebaseError) {
-        console.log('🔄 Auto-recovery detected Firebase error in rejected promise');
+      // Only handle Firestore internal errors
+      if (isFirestoreInternalError(error)) {
+        console.log('🚨 Unhandled promise rejection caught Firestore error');
         
-        // Attempt to refresh connection
-        refreshFirestoreConnection()
-          .then(success => {
-            if (success) {
-              console.log('✅ Auto-recovery successfully refreshed Firebase connection');
-            } else {
-              console.warn('⚠️ Auto-recovery failed to refresh Firebase connection');
-            }
-          })
-          .catch(refreshError => {
-            console.error('❌ Error during auto-recovery refresh:', refreshError);
-          });
+        // Check circuit breaker
+        if (shouldHandleFirestoreError()) {
+          console.log('Attempting auto-recovery for unhandled Firestore error');
+          
+          // Simple refresh to avoid complex logic in this path
+          refreshFirestoreConnection()
+            .then(() => console.log('✅ Auto-recovery completed'))
+            .catch(e => console.error('❌ Auto-recovery failed:', e));
+        }
       }
     };
     
-    // Add platform-specific unhandled rejection listeners
+    // Different APIs for different platforms
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.addEventListener('unhandledrejection', handleRejection);
+      console.log('✅ Web unhandledrejection listener installed');
       
-      console.log('✅ Firebase error auto-recovery initialized for web');
-      
-      // Return cleanup function
       return () => {
         window.removeEventListener('unhandledrejection', handleRejection);
       };
     } else {
-      // For React Native, we need a different approach
-      // There's no direct equivalent, but we can try setting up a global rejection handler
-      if (global.__shouldCancelPatching) {
-        console.log('Firebase error auto-recovery cannot be initialized for this environment');
-      } else {
-        console.log('✅ Firebase error auto-recovery initialized');
+      // For React Native, less reliable but worth trying
+      const process = global.process;
+      if (process && typeof process.on === 'function') {
+        process.on('unhandledRejection', handleRejection);
+        console.log('✅ Node-style unhandledRejection listener installed');
+        
+        return () => {
+          process.off('unhandledRejection', handleRejection);
+        };
       }
     }
+    
+    console.warn('⚠️ Could not set up unhandled rejection listener');
+    return () => {}; // Return no-op cleanup
+  } catch (error) {
+    console.warn('Failed to set up Firebase error auto-recovery:', error);
+    return () => {}; // Return no-op cleanup
   }
-  
-  // No-op for production or unsupported platforms
-  return () => {};
 }; 

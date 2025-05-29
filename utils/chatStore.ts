@@ -15,6 +15,10 @@ import {
 } from './firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { mockConversations, mockMessages } from './mockData';
+import { Alert } from 'react-native';
+
+// Maximum retries for Firebase operations
+const MAX_RETRIES = 2;
 
 // Define the store state
 export interface ChatState {
@@ -33,6 +37,7 @@ export interface ChatState {
   // Internal state for managing subscriptions and timing
   _unsubscribers?: Record<string, () => void>;
   _lastTypingUpdate?: Record<string, number>;
+  _useMockData: boolean; // Flag to force using mock data if Firebase is problematic
   
   // Actions
   fetchConversations: (userId: string) => void;
@@ -44,7 +49,40 @@ export interface ChatState {
   updateNetworkStatus: (status: NetworkStatus) => void;
   uploadAndSendMediaMessage: (uri: string, conversationId: string, sender: string, type: 'image' | 'gif') => Promise<void>;
   cleanupSubscribers: (conversationId?: string) => void;
+  toggleUseMockData: (useMock: boolean) => void; // Toggle mock data usage
 }
+
+// Keep track of error counts to prevent infinite loops
+let conversationErrorCount = 0;
+let messageErrorCount = 0;
+const ERROR_THRESHOLD = 3; // Switch to mock data after this many consecutive errors
+
+// Safe wrapper for Firebase operations
+const safeFirebaseOperation = async <T>(
+  operation: () => Promise<T>,
+  fallback: T,
+  errorMessage: string,
+  maxRetries = MAX_RETRIES
+): Promise<T> => {
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.error(`${errorMessage} (attempt ${retries + 1}/${maxRetries}):`, error);
+      retries++;
+      
+      // Wait a bit before retrying (increasing delay with each retry)
+      if (retries < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+      }
+    }
+  }
+  
+  console.warn(`${errorMessage}: Using fallback data after ${maxRetries} failed attempts`);
+  return fallback;
+};
 
 export const useChatStore = create<ChatState>((set, get) => ({
   // Initial state
@@ -60,15 +98,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingConversations: false,
   isLoadingMessages: false,
   error: null,
+  _useMockData: false,
+  
+  // Toggle mock data usage
+  toggleUseMockData: (useMock: boolean) => {
+    set({ _useMockData: useMock });
+    
+    // If switching to mock data, load it immediately
+    if (useMock) {
+      set({ 
+        conversations: mockConversations,
+        error: "Using mock data (Firebase disabled)"
+      });
+      
+      // Clean up any existing Firebase subscribers
+      const currentUnsubscribers = get()._unsubscribers || {};
+      Object.values(currentUnsubscribers).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          try {
+            unsubscribe();
+          } catch (error) {
+            console.error('Error unsubscribing:', error);
+          }
+        }
+      });
+      
+      set({ _unsubscribers: {} });
+    }
+  },
   
   // Actions
   fetchConversations: (userId: string) => {
+    // If using mock data, return immediately
+    if (get()._useMockData) {
+      set({ 
+        conversations: mockConversations,
+        isLoadingConversations: false
+      });
+      return;
+    }
+    
     set({ isLoadingConversations: true, error: null });
     
     // First, clean up any existing conversation subscribers to prevent duplicate listeners
     const currentUnsubscribers = get()._unsubscribers || {};
     if (currentUnsubscribers.conversations) {
-      currentUnsubscribers.conversations();
+      try {
+        currentUnsubscribers.conversations();
+      } catch (error) {
+        console.error('Error unsubscribing from conversations:', error);
+      }
       
       // Update the unsubscribers state without the one we just called
       const { conversations, ...restUnsubscribers } = currentUnsubscribers;
@@ -97,9 +176,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       });
     
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates with error handling
     try {
       const unsubscribe = subscribeToConversations(userId, (conversations) => {
+        // Reset error count on success
+        conversationErrorCount = 0;
+        
         if (conversations && conversations.length > 0) {
           set({ conversations, isLoadingConversations: false });
           
@@ -112,6 +194,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }, (error) => {
         console.error('Error in fetchConversations subscription:', error);
+        
+        // Increment error count
+        conversationErrorCount++;
+        
+        // Switch to mock data if we exceed the error threshold
+        if (conversationErrorCount >= ERROR_THRESHOLD) {
+          console.warn(`Switching to mock data after ${ERROR_THRESHOLD} consecutive errors`);
+          set({ 
+            _useMockData: true,
+            conversations: mockConversations, 
+            isLoadingConversations: false,
+            error: "Using mock data due to Firebase errors"
+          });
+          
+          // Show alert to user
+          Alert.alert(
+            "Connection Issue",
+            "We're having trouble connecting to the chat server. Using offline data for now.",
+            [{ text: "OK" }]
+          );
+          
+          // Clean up all subscribers
+          get().cleanupSubscribers();
+          return;
+        }
+        
         // If there's an index error, show instructions and use mock data
         if (error.message && error.message.includes('requires an index')) {
           console.error('Firebase requires a composite index. Create it using the link in the error above.');
@@ -163,15 +271,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   fetchMessages: (conversationId: string) => {
+    // If using mock data, return immediately with mock messages
+    if (get()._useMockData) {
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: mockMessages[conversationId] || []
+        },
+        isLoadingMessages: false
+      }));
+      return;
+    }
+    
     set({ isLoadingMessages: true, error: null });
     
     // Clean up any existing message and typing subscribers for this conversation
     const currentUnsubscribers = get()._unsubscribers || {};
     if (currentUnsubscribers[`messages_${conversationId}`]) {
-      currentUnsubscribers[`messages_${conversationId}`]();
+      try {
+        currentUnsubscribers[`messages_${conversationId}`]();
+      } catch (error) {
+        console.error(`Error unsubscribing from messages for ${conversationId}:`, error);
+      }
     }
     if (currentUnsubscribers[`typing_${conversationId}`]) {
-      currentUnsubscribers[`typing_${conversationId}`]();
+      try {
+        currentUnsubscribers[`typing_${conversationId}`]();
+      } catch (error) {
+        console.error(`Error unsubscribing from typing indicators for ${conversationId}:`, error);
+      }
     }
     
     // Create a new unsubscribers object without the ones we just cleaned up
@@ -189,8 +317,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: {
               ...state.messages,
               [conversationId]: cachedMessages
-            },
-            isLoadingMessages: false
+            }
           }));
         } else if (mockMessages[conversationId]) {
           // Use mock messages if no cached data is available
@@ -198,8 +325,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: {
               ...state.messages,
               [conversationId]: mockMessages[conversationId]
-            },
-            isLoadingMessages: false
+            }
           }));
         }
       })
@@ -211,89 +337,135 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: {
               ...state.messages,
               [conversationId]: mockMessages[conversationId]
-            },
-            isLoadingMessages: false
+            }
           }));
         }
+      })
+      .finally(() => {
+        // Set loading to false after cache is loaded, regardless of outcome
+        set({ isLoadingMessages: false });
       });
     
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates with better error handling
     try {
+      // Add message subscription with error handler
       const unsubscribe = subscribeToMessages(conversationId, (messages) => {
+        // Reset error count on success
+        messageErrorCount = 0;
+        
+        // Update store with new messages
         set(state => ({
           messages: {
             ...state.messages,
             [conversationId]: messages
           },
           isLoadingMessages: false,
-          error: null // Clear any previous errors on successful fetch
+          error: null
         }));
-      });
-      
-      // Subscribe to typing indicators
-      const typingUnsubscribe = subscribeToTypingIndicator(
-        conversationId,
-        'current-user', // Replace with actual current user ID in production
-        (typingUsers) => {
+        
+        // Cache messages for offline use
+        AsyncStorage.setItem(`messages_${conversationId}`, JSON.stringify(messages))
+          .catch(error => console.error(`Error caching messages for ${conversationId}:`, error));
+        
+      }, (error) => {
+        // Handle errors from the messages subscription
+        console.error(`Error in messages subscription for ${conversationId}:`, error);
+        
+        // Increment error count
+        messageErrorCount++;
+        
+        // Switch to mock data if we exceed the error threshold
+        if (messageErrorCount >= ERROR_THRESHOLD) {
+          console.warn(`Switching to mock data after ${ERROR_THRESHOLD} consecutive message errors`);
+          
+          // Update the store with mock messages
           set(state => ({
-            typingUsers: {
-              ...state.typingUsers,
-              [conversationId]: typingUsers
-            }
+            _useMockData: true,
+            messages: {
+              ...state.messages,
+              [conversationId]: mockMessages[conversationId] || []
+            },
+            isLoadingMessages: false,
+            error: "Using mock data due to Firebase errors"
+          }));
+          
+          // Show alert to user
+          Alert.alert(
+            "Connection Issue",
+            "We're having trouble connecting to the chat server. Using offline data for now.",
+            [{ text: "OK" }]
+          );
+          
+          // Clean up all subscribers
+          get().cleanupSubscribers();
+        } else {
+          // Use mock data for this conversation but don't switch the entire app to mock mode yet
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [conversationId]: mockMessages[conversationId] || []
+            },
+            isLoadingMessages: false,
+            error: `Error loading messages: ${error.message}`
           }));
         }
-      );
-      
-      // Store unsubscribe functions
-      const updatedUnsubscribers = get()._unsubscribers || {};
-      set({ 
-        _unsubscribers: { 
-          ...updatedUnsubscribers, 
-          [`messages_${conversationId}`]: unsubscribe,
-          [`typing_${conversationId}`]: typingUnsubscribe
-        } 
-      });
-    } catch (error) {
-      console.error('Error subscribing to messages:', error);
-      // Handle error state
-      set({ 
-        isLoadingMessages: false,
-        error: 'Unable to load messages. Please check your connection and try again.'
       });
       
-      // If we have cached messages, still show them despite the error
-      AsyncStorage.getItem(`messages_${conversationId}`)
-        .then(data => {
-          if (data) {
-            const cachedMessages = JSON.parse(data);
-            set(state => ({
-              messages: {
-                ...state.messages,
-                [conversationId]: cachedMessages
-              }
-            }));
-          } else if (mockMessages[conversationId]) {
-            // Use mock messages if no cached data is available
-            set(state => ({
-              messages: {
-                ...state.messages,
-                [conversationId]: mockMessages[conversationId]
-              }
-            }));
-          }
-        })
-        .catch(err => {
-          console.error('Error loading cached messages after Firebase error:', err);
-          // Fallback to mock messages on error
-          if (mockMessages[conversationId]) {
-            set(state => ({
-              messages: {
-                ...state.messages,
-                [conversationId]: mockMessages[conversationId]
-              }
-            }));
-          }
+      // Store unsubscribe functions - use a try/catch to prevent errors
+      try {
+        const updatedUnsubscribers = get()._unsubscribers || {};
+        set({ 
+          _unsubscribers: { 
+            ...updatedUnsubscribers, 
+            [`messages_${conversationId}`]: unsubscribe
+          } 
         });
+      } catch (error) {
+        console.error('Error storing message unsubscriber:', error);
+      }
+      
+      // Try to add typing indicator subscription, but don't let errors stop us
+      try {
+        // Only add typing indicator if we're not in mock mode
+        if (!get()._useMockData) {
+          const typingUnsubscribe = subscribeToTypingIndicator(
+            conversationId,
+            'current-user', // Replace with actual current user ID in production
+            (typingUsers) => {
+              set(state => ({
+                typingUsers: {
+                  ...state.typingUsers,
+                  [conversationId]: typingUsers
+                }
+              }));
+            }
+          );
+          
+          // Store typing unsubscribe function
+          const updatedUnsubscribers = get()._unsubscribers || {};
+          set({ 
+            _unsubscribers: { 
+              ...updatedUnsubscribers, 
+              [`typing_${conversationId}`]: typingUnsubscribe
+            } 
+          });
+        }
+      } catch (error) {
+        console.error('Error subscribing to typing indicators:', error);
+        // Just log the error and continue - typing indicators are not critical
+      }
+    } catch (error) {
+      console.error(`Error setting up message subscriptions for ${conversationId}:`, error);
+      
+      // Fallback to mock messages
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: mockMessages[conversationId] || []
+        },
+        isLoadingMessages: false,
+        error: 'Failed to load messages. Using offline data.'
+      }));
     }
   },
   

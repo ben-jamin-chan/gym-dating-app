@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "349439736317",
+    "project_id": "gym-dating-app",
+    "storage_bucket": "gym-dating-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:349439736317:android:1e5d70ab56597853a28194",
+        "android_client_info": {
+          "package_name": "com.benjaminchan.boltexponativewind"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "349439736317-PLACEHOLDER.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOYSaYglhkUNDdZmrFUy40oHHjadwfa_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "349439736317-PLACEHOLDER.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+} 

@@ -22,7 +22,8 @@
       },
       "config": {
         "googleMapsApiKey": "YOUR_API_KEY_HERE"
-      }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "permissions": [
@@ -46,7 +47,8 @@
         "googleMaps": {
           "apiKey": "YOUR_API_KEY_HERE"
         }
-      }
+      },
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "web": {
       "bundler": "metro",
