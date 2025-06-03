@@ -1,6 +1,9 @@
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import NetInfo, { NetInfoState, NetInfoSubscription } from '@react-native-community/netinfo';
 import { processPendingMessages, refreshFirebaseConnection, refreshFirestoreConnection, enableFirestoreNetwork, disableFirestoreNetwork } from './firebase';
+import { refreshConversationsData, refreshMessagesData, cleanupAllListeners } from './firebase';
+import { refreshSuperLikeData, clearSuperLikeCache } from '../services/superLikeService';
+import { getCurrentUser } from './firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { processPendingLocationUpdates } from './processPendingLocationUpdates';
 
@@ -101,8 +104,13 @@ class NetworkReconnectionManager {
         // Check if we should attempt automatic reconnection
         const shouldReconnect = await this.shouldAttemptReconnection();
         if (shouldReconnect) {
-          console.log('Network is back - attempting automatic Firestore reconnection');
+          console.log('Network is back - attempting comprehensive reconnection');
+          
+          // First do the standard Firebase reconnection
           await this.attemptReconnection('Network connectivity restored');
+          
+          // Then refresh app-specific data
+          await this.refreshAppData();
           
           // Process any pending location updates
           try {
@@ -147,15 +155,74 @@ class NetworkReconnectionManager {
     await this.attemptReconnection('Forced immediate reconnection');
   }
 
-  // Public method for components to manually trigger reconnection
-  public manualReconnect = async (): Promise<boolean> => {
-    // Always log manual reconnection requests regardless of verbose setting
-    console.log('Manual reconnection requested by user');
-    this.isReconnecting = false; // Reset reconnection state
-    this.lastReconnectionAttempt = 0; // Reset throttling
-    const result = await this.attemptReconnection('Manual reconnection');
-    return result;
-  };
+  // New method to refresh app-specific data after reconnection
+  private async refreshAppData() {
+    const user = getCurrentUser();
+    if (!user) {
+      console.log('No user authenticated, skipping app data refresh');
+      return;
+    }
+
+    console.log('🔄 Refreshing app data after reconnection...');
+
+    try {
+      // Refresh Super Like data
+      try {
+        await refreshSuperLikeData(user.uid);
+        console.log('✅ Super Like data refreshed');
+      } catch (error) {
+        console.warn('Failed to refresh Super Like data:', error);
+        // Clear cache as fallback
+        clearSuperLikeCache();
+      }
+
+      // Clean up stale listeners to prevent conflicts
+      try {
+        cleanupAllListeners();
+        console.log('✅ Stale listeners cleaned up');
+      } catch (error) {
+        console.warn('Failed to cleanup listeners:', error);
+      }
+
+      // Small delay to prevent subscription conflicts
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Refresh conversations data
+      try {
+        await refreshConversationsData(user.uid);
+        console.log('✅ Conversations data refreshed');
+      } catch (error) {
+        console.warn('Failed to refresh conversations data:', error);
+      }
+
+      console.log('✅ App data refresh completed');
+    } catch (error) {
+      console.error('❌ Error refreshing app data:', error);
+    }
+  }
+
+  // Enhanced manual reconnection that includes app data refresh
+  async manualReconnect(): Promise<boolean> {
+    console.log('🔄 Starting manual reconnection with app data refresh...');
+    
+    try {
+      // First do the standard reconnection
+      const success = await this.attemptReconnection('Manual reconnection requested', false);
+      
+      if (success) {
+        // Then refresh app data
+        await this.refreshAppData();
+        console.log('✅ Manual reconnection with app data refresh completed');
+        return true;
+      } else {
+        console.warn('⚠️ Manual reconnection failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Manual reconnection with app data refresh failed:', error);
+      return false;
+    }
+  }
 
   // Register a callback to be notified of connection state changes
   public registerConnectionStateChangeCallback = (callback: (isConnected: boolean) => void): (() => void) => {
@@ -178,11 +245,11 @@ class NetworkReconnectionManager {
     });
   };
 
-  attemptReconnection = async (reason: string): Promise<boolean> => {
+  attemptReconnection = async (reason: string, silent: boolean = false): Promise<boolean> => {
     // Throttle reconnection attempts
     const now = Date.now();
     if (this.isReconnecting || (now - this.lastReconnectionAttempt < this.RECONNECT_THRESHOLD_MS)) {
-      if (this.verboseLogging) {
+      if (!silent || this.verboseLogging) {
         console.log(`Skipping reconnection attempt (${reason}): Too soon or already reconnecting`);
       }
       return false;

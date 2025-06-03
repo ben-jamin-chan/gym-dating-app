@@ -3,7 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { checkNetworkStatus, testInternetConnectivity, getDetailedNetworkInfo } from '@/utils/networkUtilsLite';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import networkReconnectionManager from '@/utils/NetworkReconnectionManager';
-import { refreshFirebaseConnection } from '@/utils/firebase';
+import { refreshFirebaseConnection, refreshConversationsData, refreshMessagesData } from '@/utils/firebase';
+import { getSuperLikeStatus, useSuperLike, resetSuperLikes, clearSuperLikeCache } from '@/services/superLikeService';
+import { getCurrentUser } from '@/utils/firebase';
 
 type DiagnosticResult = {
   test: string;
@@ -17,6 +19,11 @@ const NetworkDiagnosticsScreen = () => {
   const [detailedInfo, setDetailedInfo] = useState<any>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [connectionHistory, setConnectionHistory] = useState<{timestamp: string, action: string, success: boolean}[]>([]);
+  
+  // Super Like test state
+  const [superLikeStatus, setSuperLikeStatus] = useState<any>(null);
+  const [superLikeTestRunning, setSuperLikeTestRunning] = useState(false);
+  const [superLikeTestResults, setSuperLikeTestResults] = useState<{test: string, success: boolean, details: string}[]>([]);
 
   // Run diagnostics
   const runDiagnostics = async () => {
@@ -264,10 +271,28 @@ const NetworkDiagnosticsScreen = () => {
             <Text style={styles.reconnectButtonText}>Force Firebase Reconnection</Text>
           )}
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[
+            styles.reconnectButton, 
+            { backgroundColor: '#10B981', marginTop: 8 },
+            isReconnecting && styles.reconnectingButton
+          ]} 
+          onPress={forceAppRefresh}
+          disabled={isReconnecting}
+        >
+          {isReconnecting ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.reconnectButtonText}>Refreshing...</Text>
+            </>
+          ) : (
+            <Text style={styles.reconnectButtonText}>Force Complete App Refresh</Text>
+          )}
+        </TouchableOpacity>
         
         <Text style={styles.sectionDescription}>
-          Use this when your app shows connection errors but your device has internet access.
-          This will force Firebase to reset its connection.
+          Use Firebase reconnection when your app shows connection errors. Use Complete App Refresh when both Super Likes and messages are stuck or showing errors.
         </Text>
         
         {connectionHistory.length > 0 && (
@@ -292,6 +317,229 @@ const NetworkDiagnosticsScreen = () => {
         )}
       </View>
     );
+  };
+
+  // Render Super Like test section
+  const renderSuperLikeSection = () => {
+    const user = getCurrentUser();
+    
+    if (!user) {
+      return (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Super Like Diagnostics</Text>
+          <Text style={styles.sectionDescription}>
+            You must be logged in to test Super Like functionality.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Super Like Diagnostics</Text>
+        <Text style={styles.sectionDescription}>
+          Test Super Like functionality and view current status.
+        </Text>
+        
+        {superLikeStatus && (
+          <View style={styles.resultItem}>
+            <Text style={styles.testName}>Current Super Like Status</Text>
+            <Text style={styles.detailText}>Remaining: {superLikeStatus.remaining}/{superLikeStatus.total}</Text>
+            <Text style={styles.detailText}>Can Use: {superLikeStatus.canUse ? 'Yes' : 'No'}</Text>
+            <Text style={styles.detailText}>Hours Until Reset: {superLikeStatus.hoursUntilReset}</Text>
+            <Text style={styles.detailText}>Reset Time: {superLikeStatus.resetTime ? new Date(superLikeStatus.resetTime.toDate()).toLocaleString() : 'Unknown'}</Text>
+          </View>
+        )}
+        
+        <TouchableOpacity 
+          style={[styles.reconnectButton, superLikeTestRunning && styles.reconnectingButton]} 
+          onPress={runSuperLikeTests}
+          disabled={superLikeTestRunning}
+        >
+          {superLikeTestRunning ? (
+            <>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.reconnectButtonText}>Testing...</Text>
+            </>
+          ) : (
+            <Text style={styles.reconnectButtonText}>Test Super Like System</Text>
+          )}
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.reconnectButton, { backgroundColor: '#EF4444', marginTop: 8 }]} 
+          onPress={resetSuperLikesForTest}
+          disabled={superLikeTestRunning}
+        >
+          <Text style={styles.reconnectButtonText}>Reset Super Likes (Test)</Text>
+        </TouchableOpacity>
+        
+        {superLikeTestResults.length > 0 && (
+          <View style={styles.historyContainer}>
+            <Text style={styles.historyTitle}>Test Results</Text>
+            {superLikeTestResults.map((result, index) => (
+              <View key={index} style={styles.historyEntry}>
+                <Text style={[
+                  styles.historyAction,
+                  result.success ? styles.historySuccess : styles.historyFailure
+                ]}>
+                  {result.test}: {result.success ? '✅' : '❌'}
+                </Text>
+                <Text style={styles.detailText}>{result.details}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  // Run Super Like tests
+  const runSuperLikeTests = async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    setSuperLikeTestRunning(true);
+    setSuperLikeTestResults([]);
+    
+    const testResults: {test: string, success: boolean, details: string}[] = [];
+    
+    // Test 1: Get Super Like status
+    try {
+      const status = await getSuperLikeStatus(user.uid);
+      setSuperLikeStatus(status);
+      testResults.push({
+        test: 'Get Status',
+        success: true,
+        details: `Retrieved status: ${status.remaining}/${status.total} remaining`
+      });
+    } catch (error) {
+      testResults.push({
+        test: 'Get Status',
+        success: false,
+        details: `Error: ${(error as any)?.message || 'Unknown error'}`
+      });
+    }
+    
+    // Test 2: Clear cache
+    try {
+      clearSuperLikeCache();
+      testResults.push({
+        test: 'Clear Cache',
+        success: true,
+        details: 'Super Like cache cleared successfully'
+      });
+    } catch (error) {
+      testResults.push({
+        test: 'Clear Cache',
+        success: false,
+        details: `Error: ${(error as any)?.message || 'Unknown error'}`
+      });
+    }
+    
+    // Test 3: Check network connectivity
+    try {
+      const isOnline = await checkNetworkStatus();
+      testResults.push({
+        test: 'Network Check',
+        success: isOnline,
+        details: isOnline ? 'Device is online' : 'Device is offline'
+      });
+    } catch (error) {
+      testResults.push({
+        test: 'Network Check',
+        success: false,
+        details: `Error: ${(error as any)?.message || 'Unknown error'}`
+      });
+    }
+
+    // Test 4: Test conversations refresh
+    try {
+      const conversations = await refreshConversationsData(user.uid);
+      testResults.push({
+        test: 'Refresh Conversations',
+        success: true,
+        details: `Refreshed ${conversations.length} conversations`
+      });
+    } catch (error) {
+      testResults.push({
+        test: 'Refresh Conversations',
+        success: false,
+        details: `Error: ${(error as any)?.message || 'Unknown error'}`
+      });
+    }
+    
+    setSuperLikeTestResults(testResults);
+    setSuperLikeTestRunning(false);
+  };
+
+  // Reset Super Likes for testing
+  const resetSuperLikesForTest = async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    try {
+      await resetSuperLikes(user.uid);
+      // Refresh status
+      const status = await getSuperLikeStatus(user.uid);
+      setSuperLikeStatus(status);
+    } catch (error) {
+      console.error('Error resetting Super Likes:', error);
+    }
+  };
+
+  // Force comprehensive app refresh
+  const forceAppRefresh = async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    
+    setIsReconnecting(true);
+    const timestamp = new Date().toISOString();
+    
+    try {
+      setConnectionHistory(prev => [
+        { timestamp, action: 'Starting comprehensive app refresh', success: true },
+        ...prev
+      ]);
+      
+      // Use the enhanced manual reconnect that includes app data refresh
+      const success = await networkReconnectionManager.manualReconnect();
+      
+      setConnectionHistory(prev => [
+        { 
+          timestamp: new Date().toISOString(), 
+          action: 'Comprehensive app refresh', 
+          success
+        },
+        ...prev
+      ]);
+      
+      // Re-run diagnostics to show updated status
+      await runDiagnostics();
+      
+      // Refresh Super Like status if successful
+      if (success) {
+        try {
+          const status = await getSuperLikeStatus(user.uid);
+          setSuperLikeStatus(status);
+        } catch (error) {
+          console.warn('Failed to refresh Super Like status after app refresh:', error);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error during comprehensive app refresh:', error);
+      setConnectionHistory(prev => [
+        { 
+          timestamp: new Date().toISOString(), 
+          action: `Error during app refresh: ${error}`, 
+          success: false
+        },
+        ...prev
+      ]);
+    } finally {
+      setIsReconnecting(false);
+    }
   };
 
   return (
@@ -323,6 +571,8 @@ const NetworkDiagnosticsScreen = () => {
           <Text style={styles.sectionTitle}>Network Details</Text>
           {renderDetailedInfo()}
         </View>
+        
+        {renderSuperLikeSection()}
         
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -495,7 +745,7 @@ const styles = StyleSheet.create({
   historyAction: {
     flex: 1,
     fontSize: 12,
-    color: '#334155',
+    color: '#0F172A',
   },
   historySuccess: {
     color: '#10B981',

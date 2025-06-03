@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import { db } from '../utils/firebase';
+import { checkNetworkStatus } from '../utils/networkUtilsLite';
 
 // Types for Super Like system
 export interface SuperLikeData {
@@ -234,6 +235,25 @@ export const initializeSuperLikeData = async (userId: string): Promise<SuperLike
  */
 export const getSuperLikeStatus = async (userId: string): Promise<SuperLikeStatus> => {
   try {
+    // Check network status first
+    const isOnline = await checkNetworkStatus();
+    
+    if (!isOnline) {
+      console.log('📱 Device is offline, returning optimistic Super Like status');
+      const fallbackResetTime = getNextResetTime('fixed');
+      const now = new Date();
+      const msUntilReset = fallbackResetTime.getTime() - now.getTime();
+      const hoursUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60)));
+      
+      return {
+        remaining: DAILY_SUPER_LIKES, // Assume full count when offline
+        total: DAILY_SUPER_LIKES,
+        resetTime: Timestamp.fromDate(fallbackResetTime),
+        canUse: true, // Allow optimistic usage when offline
+        hoursUntilReset,
+      };
+    }
+    
     const superLikeData = await initializeSuperLikeData(userId);
     const now = new Date();
     const resetTime = superLikeData.resetTime.toDate();
@@ -255,7 +275,28 @@ export const getSuperLikeStatus = async (userId: string): Promise<SuperLikeStatu
   } catch (error) {
     console.error('❌ Error getting Super Like status:', error);
     
-    // Return a safe fallback status instead of throwing
+    const errorObj = error as any;
+    
+    // For offline errors, return a more informative fallback status
+    if (errorObj?.code === 'unavailable' || errorObj?.message?.includes('offline')) {
+      console.log('📱 Device appears to be offline, returning cached/default status');
+      
+      // Try to return a reasonable default rather than completely failing
+      const fallbackResetTime = getNextResetTime('fixed');
+      const now = new Date();
+      const msUntilReset = fallbackResetTime.getTime() - now.getTime();
+      const hoursUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60)));
+      
+      return {
+        remaining: DAILY_SUPER_LIKES, // Assume full count when offline
+        total: DAILY_SUPER_LIKES,
+        resetTime: Timestamp.fromDate(fallbackResetTime),
+        canUse: true, // Allow optimistic usage when offline
+        hoursUntilReset,
+      };
+    }
+    
+    // For other errors, return a safe fallback status
     const fallbackResetTime = getNextResetTime('fixed');
     return {
       remaining: 0,
@@ -273,6 +314,18 @@ export const getSuperLikeStatus = async (userId: string): Promise<SuperLikeStatu
 export const useSuperLike = async (userId: string, targetUserId: string): Promise<boolean> => {
   console.log('🌟 Starting Super Like process for user:', userId, 'target:', targetUserId);
   console.log('📱 Platform:', Platform.OS);
+  
+  // Check network status first
+  try {
+    const isOnline = await checkNetworkStatus();
+    if (!isOnline) {
+      console.log('📱 Device is offline, cannot send Super Like');
+      throw new Error('You are currently offline. Please check your internet connection and try again.');
+    }
+  } catch (networkError) {
+    console.warn('Could not check network status:', networkError);
+    // Continue with the operation even if network check fails
+  }
   
   return await retryOperation(async () => {
     try {
@@ -380,7 +433,8 @@ export const useSuperLike = async (userId: string, targetUserId: string): Promis
       } else if (errorObj?.message?.includes('timeout')) {
         throw new Error(`Request timed out on ${Platform.OS}. Please try again.`);
       } else if (errorObj?.message?.includes('Super Likes remaining') || 
-                 errorObj?.message?.includes('already super liked')) {
+                 errorObj?.message?.includes('already super liked') ||
+                 errorObj?.message?.includes('offline')) {
         // Re-throw user-facing errors as-is
         throw error;
       } else {
@@ -398,18 +452,27 @@ export const subscribeToSuperLikeStatus = (
   userId: string,
   callback: (status: SuperLikeStatus) => void
 ) => {
+  let unsubscribeFunction: (() => void) | null = null;
+
   // Initialize data first to avoid race conditions
   const initializeAndSubscribe = async () => {
     try {
       // Ensure data exists before setting up listener
       await initializeSuperLikeData(userId);
       
+      // Clear any existing subscription first to prevent conflicts
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+        unsubscribeFunction = null;
+      }
+      
       // Now set up the listener
-      return onSnapshot(
+      unsubscribeFunction = onSnapshot(
         doc(superLikesCollection, userId), 
-        async (doc) => {
+        async (docSnapshot) => {
           try {
-            if (doc.exists()) {
+            if (docSnapshot.exists()) {
+              // Force refresh the status instead of using cached data
               const status = await getSuperLikeStatus(userId);
               callback(status);
             } else {
@@ -421,30 +484,116 @@ export const subscribeToSuperLikeStatus = (
             }
           } catch (error) {
             console.error('Error in Super Like subscription callback:', error);
-            // Provide fallback status on error
-            callback({
-              remaining: 0,
-              total: DAILY_SUPER_LIKES,
-              resetTime: Timestamp.fromDate(getNextResetTime('fixed')),
-              canUse: false,
-              hoursUntilReset: 0
-            });
+            
+            // Provide better fallback status based on error type
+            const errorObj = error as any;
+            const fallbackResetTime = getNextResetTime('fixed');
+            const now = new Date();
+            const msUntilReset = fallbackResetTime.getTime() - now.getTime();
+            const hoursUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60)));
+            
+            if (errorObj?.code === 'unavailable' || errorObj?.message?.includes('offline')) {
+              // Offline fallback - be optimistic
+              callback({
+                remaining: DAILY_SUPER_LIKES,
+                total: DAILY_SUPER_LIKES,
+                resetTime: Timestamp.fromDate(fallbackResetTime),
+                canUse: true,
+                hoursUntilReset
+              });
+            } else {
+              // Other errors - be conservative
+              callback({
+                remaining: 0,
+                total: DAILY_SUPER_LIKES,
+                resetTime: Timestamp.fromDate(fallbackResetTime),
+                canUse: false,
+                hoursUntilReset: 0
+              });
+            }
           }
         },
         (error) => {
           console.error('Error in Super Like snapshot listener:', error);
+          
+          // Handle subscription errors more gracefully
+          const errorObj = error as any;
+          
+          // If we get a "Target ID already exists" error, try to re-establish the subscription
+          if (errorObj?.code === 'already-exists') {
+            console.log('🔄 Subscription conflict detected, retrying in 2 seconds...');
+            setTimeout(() => {
+              initializeAndSubscribe();
+            }, 2000);
+            return;
+          }
+          
           // Provide fallback status on listener error
-          callback({
-            remaining: 0,
-            total: DAILY_SUPER_LIKES,
-            resetTime: Timestamp.fromDate(getNextResetTime('fixed')),
-            canUse: false,
-            hoursUntilReset: 0
-          });
+          const fallbackResetTime = getNextResetTime('fixed');
+          const now = new Date();
+          const msUntilReset = fallbackResetTime.getTime() - now.getTime();
+          const hoursUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60)));
+          
+          if (errorObj?.code === 'unavailable' || errorObj?.message?.includes('offline')) {
+            // Offline fallback
+            callback({
+              remaining: DAILY_SUPER_LIKES,
+              total: DAILY_SUPER_LIKES,
+              resetTime: Timestamp.fromDate(fallbackResetTime),
+              canUse: true,
+              hoursUntilReset
+            });
+          } else {
+            // Other errors
+            callback({
+              remaining: 0,
+              total: DAILY_SUPER_LIKES,
+              resetTime: Timestamp.fromDate(fallbackResetTime),
+              canUse: false,
+              hoursUntilReset: 0
+            });
+          }
         }
       );
+      
+      // Return the actual unsubscribe function
+      return () => {
+        if (unsubscribeFunction) {
+          unsubscribeFunction();
+          unsubscribeFunction = null;
+        }
+      };
+      
     } catch (error) {
       console.error('Error initializing Super Like subscription:', error);
+      
+      // Provide initial fallback status
+      const errorObj = error as any;
+      const fallbackResetTime = getNextResetTime('fixed');
+      const now = new Date();
+      const msUntilReset = fallbackResetTime.getTime() - now.getTime();
+      const hoursUntilReset = Math.max(0, Math.ceil(msUntilReset / (1000 * 60 * 60)));
+      
+      if (errorObj?.code === 'unavailable' || errorObj?.message?.includes('offline')) {
+        // Offline fallback
+        callback({
+          remaining: DAILY_SUPER_LIKES,
+          total: DAILY_SUPER_LIKES,
+          resetTime: Timestamp.fromDate(fallbackResetTime),
+          canUse: true,
+          hoursUntilReset
+        });
+      } else {
+        // Other errors
+        callback({
+          remaining: 0,
+          total: DAILY_SUPER_LIKES,
+          resetTime: Timestamp.fromDate(fallbackResetTime),
+          canUse: false,
+          hoursUntilReset: 0
+        });
+      }
+      
       // Return a no-op unsubscribe function
       return () => {};
     }
@@ -452,6 +601,28 @@ export const subscribeToSuperLikeStatus = (
 
   // Return the subscription promise
   return initializeAndSubscribe();
+};
+
+/**
+ * Force refresh Super Like data (useful after network reconnection)
+ */
+export const refreshSuperLikeData = async (userId: string): Promise<SuperLikeStatus> => {
+  console.log('🔄 Forcing Super Like data refresh for user:', userId);
+  
+  // Clear any cached data
+  clearSuperLikeCache();
+  
+  try {
+    // Force re-initialize the data
+    const superLikeData = await initializeSuperLikeData(userId);
+    console.log('✅ Super Like data refreshed:', superLikeData);
+    
+    // Return fresh status
+    return await getSuperLikeStatus(userId);
+  } catch (error) {
+    console.error('❌ Failed to refresh Super Like data:', error);
+    throw error;
+  }
 };
 
 /**

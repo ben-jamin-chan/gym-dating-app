@@ -216,3 +216,6 @@ Total Impact:
 ~2,500 lines can be reduced through refactoring
 40% reduction in code duplication achievable
 
+== 29 MAY 2025 ==
+- Implemented compatibility for both iOS and Android
+

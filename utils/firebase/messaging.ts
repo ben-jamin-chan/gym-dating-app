@@ -87,6 +87,7 @@ export const subscribeToConversations = (
   errorCallback?: (error: any) => void
 ) => {
   const listenerId = `conversations_${userId}`;
+  let unsubscribeFunction: (() => void) | null = null;
   
   // Clean up any existing listener first
   cleanupExistingListener(listenerId);
@@ -98,12 +99,17 @@ export const subscribeToConversations = (
       orderBy('lastMessageTimestamp', 'desc')
     );
     
-    // Add a longer delay before setting up the subscription to prevent conflicts
-    const setupTimer = setTimeout(() => {
+    const setupSubscription = () => {
       try {
         console.log(`🔗 Setting up conversations subscription for ${userId}`);
         
-        const unsubscribe = onSnapshot(q, 
+        // Clear any existing subscription first to prevent conflicts
+        if (unsubscribeFunction) {
+          unsubscribeFunction();
+          unsubscribeFunction = null;
+        }
+        
+        unsubscribeFunction = onSnapshot(q, 
           (querySnapshot) => {
             try {
               const conversations = querySnapshot.docs.map(doc => ({
@@ -123,6 +129,15 @@ export const subscribeToConversations = (
           (error) => {
             console.error('❌ Error in conversations subscription:', error);
             
+            // Handle specific error types
+            if (error.code === 'already-exists') {
+              console.log('🔄 Subscription conflict detected, retrying in 2 seconds...');
+              setTimeout(() => {
+                setupSubscription();
+              }, 2000);
+              return;
+            }
+            
             // Handle the error
             handleFirestoreError(error, 'subscribeToConversations').catch(handleError => {
               console.warn('Error in error handler:', handleError);
@@ -138,7 +153,12 @@ export const subscribeToConversations = (
         );
         
         // Store the unsubscribe function
-        activeListeners.set(listenerId, unsubscribe);
+        activeListeners.set(listenerId, () => {
+          if (unsubscribeFunction) {
+            unsubscribeFunction();
+            unsubscribeFunction = null;
+          }
+        });
         console.log(`✅ Conversations subscription established for ${userId}`);
         
       } catch (subscriptionError) {
@@ -147,11 +167,17 @@ export const subscribeToConversations = (
           errorCallback(subscriptionError);
         }
       }
-    }, 1500); // Increased delay to prevent Target ID conflicts
+    };
+    
+    // Setup with a small delay to prevent immediate conflicts
+    setTimeout(setupSubscription, 500);
     
     // Return cleanup function
     return () => {
-      clearTimeout(setupTimer);
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+        unsubscribeFunction = null;
+      }
       cleanupExistingListener(listenerId);
     };
     
@@ -211,6 +237,7 @@ export const getMessages = async (conversationId: string, retryCount = 0): Promi
 
 export const subscribeToMessages = (conversationId: string, callback: (messages: Message[]) => void) => {
   const listenerId = `messages_${conversationId}`;
+  let unsubscribeFunction: (() => void) | null = null;
   
   // Clean up any existing listener first
   cleanupExistingListener(listenerId);
@@ -221,12 +248,17 @@ export const subscribeToMessages = (conversationId: string, callback: (messages:
       orderBy('timestamp', 'asc')
     );
     
-    // Add a longer delay before setting up the subscription to prevent conflicts
-    const setupTimer = setTimeout(() => {
+    const setupSubscription = () => {
       try {
         console.log(`🔗 Setting up messages subscription for conversation ${conversationId}`);
         
-        const unsubscribe = onSnapshot(q, 
+        // Clear any existing subscription first to prevent conflicts
+        if (unsubscribeFunction) {
+          unsubscribeFunction();
+          unsubscribeFunction = null;
+        }
+        
+        unsubscribeFunction = onSnapshot(q, 
           (querySnapshot) => {
             try {
               const messages = querySnapshot.docs.map(doc => ({
@@ -248,6 +280,15 @@ export const subscribeToMessages = (conversationId: string, callback: (messages:
           (error) => {
             console.error('❌ Error in messages subscription:', error);
             
+            // Handle specific error types
+            if (error.code === 'already-exists') {
+              console.log('🔄 Messages subscription conflict detected, retrying in 2 seconds...');
+              setTimeout(() => {
+                setupSubscription();
+              }, 2000);
+              return;
+            }
+            
             // Handle the error
             handleFirestoreError(error, 'subscribeToMessages').catch(handleError => {
               console.warn('Error in error handler:', handleError);
@@ -259,17 +300,28 @@ export const subscribeToMessages = (conversationId: string, callback: (messages:
         );
         
         // Store the unsubscribe function
-        activeListeners.set(listenerId, unsubscribe);
+        activeListeners.set(listenerId, () => {
+          if (unsubscribeFunction) {
+            unsubscribeFunction();
+            unsubscribeFunction = null;
+          }
+        });
         console.log(`✅ Messages subscription established for conversation ${conversationId}`);
         
       } catch (subscriptionError) {
         console.error('❌ Error setting up messages subscription:', subscriptionError);
       }
-    }, 1500); // Increased delay to prevent Target ID conflicts
+    };
+    
+    // Setup with a small delay to prevent immediate conflicts
+    setTimeout(setupSubscription, 500);
     
     // Return cleanup function
     return () => {
-      clearTimeout(setupTimer);
+      if (unsubscribeFunction) {
+        unsubscribeFunction();
+        unsubscribeFunction = null;
+      }
       cleanupExistingListener(listenerId);
     };
     
@@ -283,19 +335,19 @@ export const subscribeToMessages = (conversationId: string, callback: (messages:
 
 // Function to clean up all active listeners (useful for app cleanup)
 export const cleanupAllListeners = () => {
-  console.log(`🧹 Cleaning up ${activeListeners.size} active Firestore listeners`);
+  console.log('🧹 Cleaning up all active listeners...');
   
   activeListeners.forEach((unsubscribe, listenerId) => {
     try {
+      console.log(`Cleaning up listener: ${listenerId}`);
       unsubscribe();
-      console.log(`✅ Cleaned up listener: ${listenerId}`);
     } catch (error) {
-      console.warn(`⚠️ Error cleaning up listener ${listenerId}:`, error);
+      console.warn(`Error cleaning up listener ${listenerId}:`, error);
     }
   });
   
   activeListeners.clear();
-  console.log('✅ All Firestore listeners cleaned up');
+  console.log('✅ All listeners cleaned up');
 };
 
 export const sendMessage = async (conversationId: string, message: Omit<Message, 'id'>) => {
@@ -521,4 +573,40 @@ export const subscribeToTypingIndicator = (
       unsubscribeFunc();
     }
   };
+};
+
+/**
+ * Force refresh conversations data (useful after network reconnection)
+ */
+export const refreshConversationsData = async (userId: string): Promise<Conversation[]> => {
+  console.log('🔄 Forcing conversations data refresh for user:', userId);
+  
+  try {
+    // Force re-fetch the conversations
+    const conversations = await getConversations(userId);
+    console.log('✅ Conversations data refreshed:', conversations.length, 'conversations');
+    
+    return conversations;
+  } catch (error) {
+    console.error('❌ Failed to refresh conversations data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Force refresh messages data (useful after network reconnection)
+ */
+export const refreshMessagesData = async (conversationId: string): Promise<Message[]> => {
+  console.log('🔄 Forcing messages data refresh for conversation:', conversationId);
+  
+  try {
+    // Force re-fetch the messages
+    const messages = await getMessages(conversationId);
+    console.log('✅ Messages data refreshed:', messages.length, 'messages');
+    
+    return messages;
+  } catch (error) {
+    console.error('❌ Failed to refresh messages data:', error);
+    throw error;
+  }
 }; 
